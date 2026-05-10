@@ -1,0 +1,1583 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DISEARTH — Diversité et Inclusion VR</title>
+
+    <!-- Google Fonts pour Raleway -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <!-- Pannellum CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Raleway', 'sans-serif'],
+                        title: ['"Heroeau Elegant"', 'serif']
+                    },
+                    colors: {
+                        glass: 'rgba(255, 255, 255, 0.08)',
+                        glassHover: 'rgba(255, 255, 255, 0.15)',
+                        glassBorder: 'rgba(255, 255, 255, 0.2)'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Style global, polices et animations -->
+    <style>
+        /* Déclaration de la police Heroeau Elegant (Fallback sur serif élégant si fichier local absent) */
+        @font-face {
+            font-family: 'Heroeau Elegant';
+            src: url('/fonts/Heroeau-Elegant.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; /* Aucun défilement global */
+            background-color: #000008; /* Fond de base strict quasi noir pur */
+            color: white;
+            user-select: none;
+        }
+
+        /* Style Liquid Glass (verre dépoli type iOS) */
+        .liquid-glass {
+            background: var(--glass, rgba(255, 255, 255, 0.08));
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            border-radius: 1.5rem;
+            transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        .liquid-glass-btn {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 9999px; /* Pill shape */
+            color: white;
+            transition: background 0ms, color 0ms, box-shadow 150ms ease, opacity 300ms ease;
+            cursor: pointer;
+        }
+        .liquid-glass-btn:hover {
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+        }
+
+        /* Animation de remplissage du texte (Page de chargement) */
+        .text-fill-anim {
+            background: linear-gradient(to right, #ffffff 50%, rgba(255,255,255,0.1) 50%);
+            background-size: 200% 100%;
+            background-position: 100% 0;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: fillText 3s ease-in-out forwards;
+        }
+        @keyframes fillText {
+            0% { background-position: 100% 0; }
+            100% { background-position: 0% 0; }
+        }
+
+        /* Transitions React (Fade in/out doux) */
+        .fade-enter { opacity: 0; }
+        .fade-enter-active { opacity: 1; transition: opacity 1s ease; }
+        .fade-exit { opacity: 1; }
+        .fade-exit-active { opacity: 0; transition: opacity 1s ease; }
+
+        /* Custom Scrollbar pour les modales */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 10px; }
+
+        /* Rendre Pannellum responsive */
+        #panorama { width: 100%; height: 100%; position: absolute; inset: 0; }
+        .pnlm-load-box { display: none !important; }
+    </style>
+
+    <!-- Scripts CDN : React, ReactDOM, Babel, Three.js, Pannellum -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useMemo } = React;
+
+        // Composant d'Arrière-plan Canvas avec 1200 étoiles strictes
+        const GalaxyBackground = () => {
+            const canvasRef = useRef(null);
+
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d', { alpha: false });
+                let animationFrameId;
+                
+                const setSize = () => {
+                    canvas.width = window.innerWidth;
+                    canvas.height = window.innerHeight;
+                };
+                setSize();
+                window.addEventListener('resize', setSize);
+
+                const stars = [];
+                for (let i = 0; i < 1200; i++) {
+                    let r, baseOpacity;
+                    const rand = Math.random();
+                    
+                    // Distribution stricte selon les règles demandées
+                    if (rand < 0.70) {
+                        // 70% : rayon 0.2 - 0.4 (diamètre 0.4 - 0.8)
+                        r = 0.2 + Math.random() * 0.2; 
+                        // opacity 0.4 à 0.7
+                        baseOpacity = 0.4 + Math.random() * 0.3;
+                    } else if (rand < 0.95) {
+                        // 25% : rayon 0.4 - 0.7 (diamètre 0.8 - 1.4)
+                        r = 0.4 + Math.random() * 0.3;
+                        // opacity 0.6 à 0.9
+                        baseOpacity = 0.6 + Math.random() * 0.3;
+                    } else {
+                        // 5% : rayon 0.7 - 1.0 (diamètre 1.4 - 2.0)
+                        r = 0.7 + Math.random() * 0.3;
+                        // opacity 0.8 à 1.0
+                        baseOpacity = 0.8 + Math.random() * 0.2;
+                    }
+                    
+                    // Couleurs : 80% blanc pur, 20% très légèrement bleuté
+                    const color = Math.random() < 0.2 ? '232, 240, 255' : '255, 255, 255';
+                    
+                    // 15% des étoiles ont une animation de scintillement subtile
+                    const isTwinkling = Math.random() < 0.15;
+                    // Vitesse pour un cycle aléatoire de 3s à 6s (vitesse = 2*PI / temps_ms)
+                    const twinkleSpeed = 0.00104 + Math.random() * (0.00209 - 0.00104);
+                    const twinklePhase = Math.random() * Math.PI * 2;
+
+                    stars.push({
+                        x: Math.random() * window.innerWidth,
+                        y: Math.random() * window.innerHeight,
+                        r, baseOpacity, color, isTwinkling, twinkleSpeed, twinklePhase
+                    });
+                }
+
+                const render = (time) => {
+                    // Fond quasi pur et sans halos (#000008)
+                    ctx.fillStyle = '#000008';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                    stars.forEach(s => {
+                        let opacity = s.baseOpacity;
+                        if (s.isTwinkling) {
+                            // Sinusoïde entre -1 et 1 ajustée pour osciller entre 0.3 et 1.0
+                            // Centre de l'oscillation = 0.65, amplitude = 0.35
+                            const sine = Math.sin(time * s.twinkleSpeed + s.twinklePhase);
+                            opacity = 0.65 + (sine * 0.35);
+                        }
+                        ctx.beginPath();
+                        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+                        ctx.fillStyle = `rgba(${s.color}, ${opacity})`;
+                        ctx.fill();
+                    });
+
+                    animationFrameId = requestAnimationFrame(render);
+                };
+                animationFrameId = requestAnimationFrame(render);
+
+                return () => {
+                    window.removeEventListener('resize', setSize);
+                    cancelAnimationFrame(animationFrameId);
+                };
+            }, []);
+
+            return <canvas ref={canvasRef} style={{position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: -10}} />;
+        };
+
+        // Base de données des pays
+        const CONTINENTS = [
+            { id: 'asie', name: 'Asie', lat: 34, lon: 100, countries: [
+                { name: 'Afghanistan', flag: '🇦🇫' }, { name: 'Arménie', flag: '🇦🇲' }, { name: 'Arabie Saoudite', flag: '🇸🇦' }, { name: 'Azerbaïdjan', flag: '🇦🇿' }, { name: 'Bangladesh', flag: '🇧🇩' }, { name: 'Bahreïn', flag: '🇧🇭' }, { name: 'Bhoutan', flag: '🇧🇹' }, { name: 'Birmanie', flag: '🇲🇲' }, { name: 'Brunei', flag: '🇧🇳' }, { name: 'Cambodge', flag: '🇰🇭' }, { name: 'Émirats Arabes Unis', flag: '🇦🇪' }, { name: 'Géorgie', flag: '🇬🇪' }, { name: 'Inde', flag: '🇮🇳' }, { name: 'Indonésie', flag: '🇮🇩' }, { name: 'Iran', flag: '🇮🇷' }, { name: 'Iraq', flag: '🇮🇶' }, { name: 'Israël', flag: '🇮🇱' }, { name: 'Japon', flag: '🇯🇵' }, { name: 'Jordanie', flag: '🇯🇴' }, { name: 'Kazakhstan', flag: '🇰🇿' }, { name: 'Kirghizistan', flag: '🇰🇬' }, { name: 'Koweït', flag: '🇰🇼' }, { name: 'Laos', flag: '🇱🇦' }, { name: 'Liban', flag: '🇱🇧' }, { name: 'Malaisie', flag: '🇲🇾' }, { name: 'Maldives', flag: '🇲🇻' }, { name: 'Mongolie', flag: '🇲🇳' }, { name: 'Népal', flag: '🇳🇵' }, { name: 'Oman', flag: '🇴🇲' }, { name: 'Pakistan', flag: '🇵🇰' }, { name: 'Palestine', flag: '🇵🇸' }, { name: 'Philippines', flag: '🇵🇭' }, { name: 'Qatar', flag: '🇶🇦' }, { name: 'Ouzbékistan', flag: '🇺🇿' }, { name: 'République De Corée', flag: '🇰🇷' }, { name: 'République Populaire Démocratique De Corée', flag: '🇰🇵' }, { name: 'Singapour', flag: '🇸🇬' }, { name: 'Sri Lanka', flag: '🇱🇰' }, { name: 'Syrie', flag: '🇸🇾' }, { name: 'Tadjikistan', flag: '🇹🇯' }, { name: 'Thaïlande', flag: '🇹🇭' }, { name: 'Timor Oriental', flag: '🇹🇱' }, { name: 'Turkménistan', flag: '🇹🇲' }, { name: 'Türkiye', flag: '🇹🇷' }, { name: 'Viêt-Nam', flag: '🇻🇳' }, { name: 'Yémen', flag: '🇾🇪' }
+            ]},
+            { id: 'afrique', name: 'Afrique', lat: 8, lon: 20, countries: [
+                { name: 'Afrique Centrale', flag: '🇨🇫' }, { name: 'Afrique Du Sud', flag: '🇿🇦' }, { name: 'Algérie', flag: '🇩🇿' }, { name: 'Angola', flag: '🇦🇴' }, { name: 'Bénin', flag: '🇧🇯' }, { name: 'Botswana', flag: '🇧🇼' }, { name: 'Burundi', flag: '🇧🇮' }, { name: 'Cameroun', flag: '🇨🇲' }, { name: 'Cap-Vert', flag: '🇨🇻' }, { name: 'Tchad', flag: '🇹🇩' }, { name: 'Côte d\'Ivoire', flag: '🇨🇮' }, { name: 'Comores', flag: '🇰🇲' }, { name: 'Djibouti', flag: '🇩🇯' }, { name: 'Égypte', flag: '🇪🇬' }, { name: 'Érythrée', flag: '🇪🇷' }, { name: 'Éthiopie', flag: '🇪🇹' }, { name: 'Gabon', flag: '🇬🇦' }, { name: 'Gambie', flag: '🇬🇲' }, { name: 'Ghana', flag: '🇬🇭' }, { name: 'Guinée', flag: '🇬🇳' }, { name: 'Guinée-Bissau', flag: '🇬🇼' }, { name: 'Kenya', flag: '🇰🇪' }, { name: 'Lésotho', flag: '🇱🇸' }, { name: 'Libye', flag: '🇱🇾' }, { name: 'Libéria', flag: '🇱🇷' }, { name: 'Madagascar', flag: '🇲🇬' }, { name: 'Mali', flag: '🇲🇱' }, { name: 'Maroc', flag: '🇲🇦' }, { name: 'Mauritanie', flag: '🇲🇷' }, { name: 'Maurice', flag: '🇲🇺' }, { name: 'Mozambique', flag: '🇲🇿' }, { name: 'Namibie', flag: '🇳🇦' }, { name: 'Niger', flag: '🇳🇪' }, { name: 'Nigéria', flag: '🇳🇬' }, { name: 'Guinée Équatoriale', flag: '🇬🇶' }, { name: 'République Du Congo', flag: '🇨🇬' }, { name: 'République Démocratique Du Congo', flag: '🇨🇩' }, { name: 'Rwanda', flag: '🇷🇼' }, { name: 'Sénégal', flag: '🇸🇳' }, { name: 'Sierra Leone', flag: '🇸🇱' }, { name: 'Seychelles', flag: '🇸🇨' }, { name: 'Somalie', flag: '🇸🇴' }, { name: 'Soudan', flag: '🇸🇩' }, { name: 'Tanzanie', flag: '🇹🇿' }, { name: 'Togo', flag: '🇹🇬' }, { name: 'Tunisie', flag: '🇹🇳' }, { name: 'Ouganda', flag: '🇺🇬' }, { name: 'Zambie', flag: '🇿🇲' }, { name: 'Zimbabwe', flag: '🇿🇼' }
+            ]},
+            { id: 'europe', name: 'Europe', lat: 50, lon: 10, countries: [
+                { name: 'Albanie', flag: '🇦🇱' }, { name: 'Allemagne', flag: '🇩🇪' }, { name: 'Andorre', flag: '🇦🇩' }, { name: 'Autriche', flag: '🇦🇹' }, { name: 'Biélorussie', flag: '🇧🇾' }, { name: 'Belgique', flag: '🇧🇪' }, { name: 'Bosnie-Herzégovine', flag: '🇧🇦' }, { name: 'Bulgarie', flag: '🇧🇬' }, { name: 'Chypre', flag: '🇨🇾' }, { name: 'Croatie', flag: '🇭🇷' }, { name: 'Danemark', flag: '🇩🇰' }, { name: 'Espagne', flag: '🇪🇸' }, { name: 'Estonie', flag: '🇪🇪' }, { name: 'Finlande', flag: '🇫🇮' }, { name: 'France', flag: '🇫🇷' }, { name: 'Grèce', flag: '🇬🇷' }, { name: 'Hongrie', flag: '🇭🇺' }, { name: 'Islande', flag: '🇮🇸' }, { name: 'Italie', flag: '🇮🇹' }, { name: 'Irlande', flag: '🇮🇪' }, { name: 'Lettonie', flag: '🇱🇻' }, { name: 'Liechtenstein', flag: '🇱🇮' }, { name: 'Lituanie', flag: '🇱🇹' }, { name: 'Luxembourg', flag: '🇱🇺' }, { name: 'Macédoine', flag: '🇲🇰' }, { name: 'Malte', flag: '🇲🇹' }, { name: 'Moldavie', flag: '🇲🇩' }, { name: 'Monaco', flag: '🇲🇨' }, { name: 'Norvège', flag: '🇳🇴' }, { name: 'Pays-Bas', flag: '🇳🇱' }, { name: 'Pologne', flag: '🇵🇱' }, { name: 'Portugal', flag: '🇵🇹' }, { name: 'République Tchèque', flag: '🇨🇿' }, { name: 'Roumanie', flag: '🇷🇴' }, { name: 'Royaume-Uni', flag: '🇬🇧' }, { name: 'Russie', flag: '🇷🇺' }, { name: 'Saint-Marin', flag: '🇸🇲' }, { name: 'Serbie-Monténégro', flag: '🇷🇸' }, { name: 'Slovaquie', flag: '🇸🇰' }, { name: 'Slovénie', flag: '🇸🇮' }, { name: 'Suède', flag: '🇸🇪' }, { name: 'Suisse', flag: '🇨🇭' }, { name: 'Ukraine', flag: '🇺🇦' }, { name: 'Vatican', flag: '🇻🇦' }
+            ]},
+            { id: 'amnord', name: 'Amérique Du Nord', lat: 40, lon: -100, countries: [
+                { name: 'Antigua-et-Barbuda', flag: '🇦🇬' }, { name: 'Barbade', flag: '🇧🇧' }, { name: 'Bahamas', flag: '🇧🇸' }, { name: 'Canada', flag: '🇨🇦' }, { name: 'États-Unis', flag: '🇺🇸' }, { name: 'Grenade', flag: '🇬🇩' }, { name: 'Jamaïque', flag: '🇯🇲' }, { name: 'Mexique', flag: '🇲🇽' }, { name: 'Trinidad-et-Tobago', flag: '🇹🇹' }
+            ]},
+            { id: 'amsud', name: 'Amérique Du Sud', lat: -15, lon: -60, countries: [
+                { name: 'Argentine', flag: '🇦🇷' }, { name: 'Bolivie', flag: '🇧🇴' }, { name: 'Brésil', flag: '🇧🇷' }, { name: 'Chili', flag: '🇨🇱' }, { name: 'Colombie', flag: '🇨🇴' }, { name: 'Cuba', flag: '🇨🇺' }, { name: 'Équateur', flag: '🇪🇨' }, { name: 'Guyana', flag: '🇬🇾' }, { name: 'Pérou', flag: '🇵🇪' }, { name: 'Suriname', flag: '🇸🇷' }, { name: 'Uruguay', flag: '🇺🇾' }, { name: 'Venezuela', flag: '🇻🇪' }
+            ]},
+            { id: 'oceanie', name: 'Océanie', lat: -25, lon: 140, countries: [
+                { name: 'Australie', flag: '🇦🇺' }, { name: 'Fidji', flag: '🇫🇯' }, { name: 'Îles Cook', flag: '🇨🇰' }, { name: 'Kiribati', flag: '🇰🇮' }, { name: 'Micronésie', flag: '🇫🇲' }, { name: 'Nouvelle-Zélande', flag: '🇳🇿' }, { name: 'Papouasie-Nouvelle-Guinée', flag: '🇵🇬' }, { name: 'Samoa', flag: '🇼🇸' }, { name: 'Tonga', flag: '🇹🇴' }, { name: 'Vanuatu', flag: '🇻🇺' }
+            ]}
+        ];
+
+        // URLs spécifiques par pays
+        const PANO_URLS = {
+            'France': 'https://pannellum.org/images/alma.jpg',
+            'Japon': 'https://images.unsplash.com/photo-1545569341-9eb8b30979d9?w=4000',
+            'Maroc': 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/Marrakech_Djema_el_Fna_at_dusk.jpg/4096px-Marrakech_Djema_el_Fna_at_dusk.jpg',
+            'Brésil': 'https://i.imgur.com/M1idI3p.png',
+            'Australie': 'https://pannellum.org/images/jfk.jpg',
+            'Grèce': 'https://i.imgur.com/aYrGffy.png',
+            'Norvège': 'https://i.imgur.com/rAnLyNn.png',
+            'Royaume-Uni': 'https://pannellum.org/images/jfk.jpg',
+            'Sénégal': 'https://pannellum.org/images/alma.jpg',
+            'Singapour': 'https://i.imgur.com/X5ikUBD.png',
+            'Viêt-Nam': 'https://pannellum.org/images/alma.jpg',
+            'Chili': 'https://pannellum.org/images/alma.jpg',
+            'Arabie Saoudite': 'https://i.imgur.com/IIBKfVA.png'
+        };
+
+        const ACTIVE_360_COUNTRIES = ['Japon', 'Viêt-Nam', 'Singapour', 'Grèce', 'Royaume-Uni', 'Norvège', 'France', 'Sénégal', 'Maroc', 'Brésil', 'Chili', 'Australie', 'Arabie Saoudite'];
+
+        // Icônes SVG inline
+        const Icons = {
+            Menu: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>,
+            X: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>,
+            Globe: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>,
+            Gamepad: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="6" x2="10" y1="12" y2="12"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="15" x2="15.01" y1="13" y2="13"/><line x1="18" x2="18.01" y1="11" y2="11"/><rect width="20" height="12" x="2" y="6" rx="2"/></svg>,
+            Lock: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        };
+
+        const Navbar = ({ setView, view, goHome }) => {
+            const [menuOpen, setMenuOpen] = useState(false);
+            const [activeModal, setActiveModal] = useState(null);
+            const timeoutRef = useRef(null);
+
+            const menuItems = [
+                { id: 'pourquoi', label: 'Pourquoi DISEARTH ?' },
+                { id: 'propos', label: 'À propos' },
+                { id: 'pays', label: 'Pays Disponibles' },
+                { id: 'chefs', label: 'Nos Chefs & Gastronomie' },
+                { id: 'formules', label: 'Formules & Devis' },
+                { id: 'faq', label: 'Déroulé type + FAQ' },
+                { id: 'confiance', label: 'Ils nous font confiance' }
+            ];
+
+            const openModal = (id) => {
+                setActiveModal(id);
+                setMenuOpen(false);
+            };
+
+            const handleLogoClick = () => {
+                if (view !== 'loading') {
+                    goHome();
+                    setActiveModal(null);
+                    setMenuOpen(false);
+                }
+            };
+
+            const handleMouseEnter = () => {
+                if (view !== 'loading') {
+                    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+                    setMenuOpen(true);
+                }
+            };
+
+            const handleMouseLeave = () => {
+                timeoutRef.current = setTimeout(() => {
+                    setMenuOpen(false);
+                }, 200);
+            };
+
+            useEffect(() => {
+                return () => {
+                    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+                };
+            }, []);
+
+            return (
+                <>
+                    {/* Header */}
+                    <div className={`fixed top-0 left-0 w-full z-50 p-6 flex justify-between items-center transition-opacity duration-700 ${view === 'loading' ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-none'}`}>
+                        <div 
+                            className="relative pointer-events-auto flex flex-col"
+                            onMouseEnter={handleMouseEnter}
+                            onMouseLeave={handleMouseLeave}
+                        >
+                            <h1 
+                                className="font-title text-3xl tracking-widest text-white cursor-pointer hover:text-[#4A7197] transition-colors"
+                                onClick={handleLogoClick}
+                                title="Retour à l'accueil"
+                            >
+                                DISEARTH
+                            </h1>
+
+                            {/* Menu Dropdown - positionné sous le logo avec transition au survol */}
+                            <div className={`absolute top-full left-0 liquid-glass p-4 w-72 flex flex-col gap-2 transition-all duration-150 origin-top-left ${menuOpen ? 'opacity-100 visible scale-100 pointer-events-auto' : 'opacity-0 invisible scale-95 pointer-events-none'}`}>
+                                {menuItems.map(item => (
+                                    <button 
+                                        key={item.id}
+                                        onClick={() => openModal(item.id)}
+                                        className="text-left px-4 py-3 rounded-xl hover:bg-white/10 transition-colors text-sm font-semibold"
+                                    >
+                                        {item.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Fullscreen Modals */}
+                    {activeModal && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-10 bg-black/60 backdrop-blur-sm animate-[fadeIn_0.4s_ease]">
+                            <div className="liquid-glass w-full max-w-5xl h-full max-h-[85vh] flex flex-col relative overflow-hidden pointer-events-auto">
+                                <button 
+                                    onClick={() => setActiveModal(null)}
+                                    className="absolute top-6 right-6 p-2 rounded-full bg-white/10 hover:bg-white/20 transition z-10"
+                                >
+                                    <Icons.X />
+                                </button>
+                                <div className="p-8 md:p-12 overflow-y-auto h-full relative">
+                                    <ModalContent id={activeModal} />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </>
+            );
+        };
+
+        const ModalContent = ({ id }) => {
+            const chefsScrollRef = useRef(null);
+
+            useEffect(() => {
+                if (id !== 'chefs') return;
+                const el = chefsScrollRef.current;
+                if (!el) return;
+                const handleWheel = (e) => {
+                    e.preventDefault();
+                    el.scrollBy({ left: e.deltaY > 0 ? 300 : -300, behavior: 'smooth' });
+                };
+                el.addEventListener('wheel', handleWheel, { passive: false });
+                return () => el.removeEventListener('wheel', handleWheel);
+            }, [id]);
+
+            switch(id) {
+                case 'pourquoi':
+                    return (
+                        <div className="space-y-10 max-w-4xl mx-auto px-4 pb-8">
+                            <div className="text-center space-y-6 mb-12">
+                                <p className="font-title text-2xl md:text-4xl italic text-[#4A7197]">
+                                    « Et si la vraie compréhension de l'autre passait par l'expérience ? »
+                                </p>
+                                
+                                <div className="text-lg leading-relaxed text-gray-200 max-w-2xl mx-auto">
+                                    <p>Les formations classiques informent. DISEARTH transforme.<br/>
+                                    En plongeant vos équipes dans des univers culturels réels,<br/>
+                                    nous créons des liens durables là où les présentations PowerPoint échouent.</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="liquid-glass p-8 text-center flex flex-col items-center group hover:border-[#4A7197] transition-colors">
+                                    <span className="text-4xl mb-4 group-hover:scale-110 transition-transform">🥽</span>
+                                    <h3 className="font-bold tracking-widest uppercase text-lg mb-3 text-white">Immersion Réelle</h3>
+                                    <p className="text-gray-300 text-sm leading-relaxed">
+                                        "Vos équipes ne lisent plus sur les cultures.<br/>
+                                        Elles les vivent, de l'intérieur, grâce à la VR."
+                                    </p>
+                                </div>
+                                <div className="liquid-glass p-8 text-center flex flex-col items-center group hover:border-[#4A7197] transition-colors">
+                                    <span className="text-4xl mb-4 group-hover:scale-110 transition-transform">🗣️</span>
+                                    <h3 className="font-bold tracking-widest uppercase text-lg mb-3 text-white">Vos collègues, vos guides</h3>
+                                    <p className="text-gray-300 text-sm leading-relaxed">
+                                        "Chaque participant devient l'ambassadeur de sa propre culture.<br/>
+                                        La transmission vient du cœur, pas d'un manuel."
+                                    </p>
+                                </div>
+                                <div className="liquid-glass p-8 text-center flex flex-col items-center group hover:border-[#4A7197] transition-colors">
+                                    <span className="text-4xl mb-4 group-hover:scale-110 transition-transform">🍽️</span>
+                                    <h3 className="font-bold tracking-widest uppercase text-lg mb-3 text-white">La table qui rapproche</h3>
+                                    <p className="text-gray-300 text-sm leading-relaxed">
+                                        "Un plat partagé crée plus de liens qu'une journée de séminaire.<br/>
+                                        La gastronomie est notre pont entre les mondes."
+                                    </p>
+                                </div>
+                                <div className="liquid-glass p-8 text-center flex flex-col items-center group hover:border-[#4A7197] transition-colors">
+                                    <span className="text-4xl mb-4 group-hover:scale-110 transition-transform">🚀</span>
+                                    <h3 className="font-bold tracking-widest uppercase text-lg mb-3 text-white">Un impact qui dure</h3>
+                                    <p className="text-gray-300 text-sm leading-relaxed">
+                                        "Pas un événement qu'on oublie le lundi matin.<br/>
+                                        Une expérience qui change durablement le regard sur l'autre."
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <p className="text-center font-light italic text-xl mt-12 text-white/80">
+                                "DISEARTH, c'est la diversité vécue de l'intérieur."
+                            </p>
+                        </div>
+                    );
+                case 'propos':
+                    return (
+                        <div className="space-y-10 max-w-4xl mx-auto px-4 pb-8">
+                            <h2 className="font-title text-4xl text-center mb-6">À propos</h2>
+                            
+                            <div className="text-center space-y-8 mb-12">
+                                <p className="font-title text-2xl md:text-3xl italic text-[#4A7197]">
+                                    « Et si comprendre l'autre commençait par s'asseoir à sa table ? »
+                                </p>
+                                
+                                <div className="text-lg leading-relaxed text-gray-200 max-w-2xl mx-auto space-y-4">
+                                    <p>DISEARTH est né d'une conviction simple : on ne comprend pas vraiment une culture en lisant un rapport. On la comprend en la vivant, en goûtant ses plats, en jouant ses codes, en se trompant et en apprenant.</p>
+                                    <p>Nous avons conçu un atelier qui transforme la diversité en une expérience collective, mémorable et humaine. Pas une formation. Une aventure partagée.</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+                                <div className="liquid-glass p-8 text-center flex flex-col items-center group hover:border-[#4A7197] transition-colors">
+                                    <span className="text-4xl mb-4 group-hover:scale-110 transition-transform">🔍</span>
+                                    <h3 className="font-bold tracking-widest uppercase text-lg mb-3 text-white">Curiosité</h3>
+                                    <p className="text-gray-300 text-sm leading-relaxed">Nous croyons que l'inconnu est une invitation, pas une menace.</p>
+                                </div>
+                                <div className="liquid-glass p-8 text-center flex flex-col items-center group hover:border-[#4A7197] transition-colors">
+                                    <span className="text-4xl mb-4 group-hover:scale-110 transition-transform">🤝</span>
+                                    <h3 className="font-bold tracking-widest uppercase text-lg mb-3 text-white">Respect</h3>
+                                    <p className="text-gray-300 text-sm leading-relaxed">Chaque culture mérite d'être découverte sans jugement ni hiérarchie.</p>
+                                </div>
+                                <div className="liquid-glass p-8 text-center flex flex-col items-center group hover:border-[#4A7197] transition-colors">
+                                    <span className="text-4xl mb-4 group-hover:scale-110 transition-transform">🌿</span>
+                                    <h3 className="font-bold tracking-widest uppercase text-lg mb-3 text-white">Authenticité</h3>
+                                    <p className="text-gray-300 text-sm leading-relaxed">Nos contenus, nos chefs et nos expériences sont vrais. Toujours.</p>
+                                </div>
+                                <div className="liquid-glass p-8 text-center flex flex-col items-center group hover:border-[#4A7197] transition-colors">
+                                    <span className="text-4xl mb-4 group-hover:scale-110 transition-transform">🥂</span>
+                                    <h3 className="font-bold tracking-widest uppercase text-lg mb-3 text-white">Convivialité</h3>
+                                    <p className="text-gray-300 text-sm leading-relaxed">La table est notre terrain de jeu. Le partage, notre méthode.</p>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                case 'pays':
+                    return (
+                        <div className="space-y-10">
+                            <h2 className="font-title text-4xl text-center">Pays Disponibles</h2>
+                            <div className="w-full h-48 md:h-64 rounded-2xl overflow-hidden relative">
+                                <img src="https://images.unsplash.com/photo-1589519160732-57fc498494f8?q=80&w=2000&auto=format&fit=crop" alt="Carte du monde" className="w-full h-full object-cover opacity-60" />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end p-6">
+                                    <span className="text-2xl font-light">Explorez 160+ cultures</span>
+                                </div>
+                            </div>
+                            <div className="columns-1 md:columns-2 lg:columns-3 gap-8 space-y-8">
+                                {CONTINENTS.map(cont => (
+                                    <div key={cont.id} className="break-inside-avoid">
+                                        <h3 className="font-title text-2xl border-b border-white/20 pb-2 mb-4 text-[#4A7197] capitalize">{cont.name}</h3>
+                                        <ul className="space-y-2">
+                                            {cont.countries.map(c => (
+                                                <li key={c.name} className="flex items-center gap-3 text-sm text-gray-300 capitalize">
+                                                    <span className="text-xl">{c.flag}</span> {c.name}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    );
+                case 'chefs':
+                    return (
+                        <div className="space-y-8">
+                            <h2 className="font-title text-4xl text-center mb-6">Nos Chefs & Gastronomie</h2>
+                            <p className="text-center text-gray-300 max-w-2xl mx-auto mb-10">La table est le prolongement naturel du voyage. Nos chefs préparent des recettes authentiques avec des produits frais, sélectionnées en fonction des pays mis à l'honneur lors de votre session.</p>
+                            
+                            <div ref={chefsScrollRef} className="flex overflow-x-auto pb-8 gap-6 snap-x snap-mandatory" style={{ scrollBehavior: 'smooth' }}>
+                                {[
+                                    {name: 'Amara Diallo', region: 'Afrique de l\'Ouest', pays: 'Sénégal, Côte d\'Ivoire, Mali', img: 'https://i.imgur.com/gvZqGnq.jpeg'},
+                                    {name: 'Leila Mansouri', region: 'Maghreb & Moyen-Orient', pays: 'Maroc, Liban, Tunisie', img: 'https://i.imgur.com/Fr5LnHS.jpeg'},
+                                    {name: 'Kenji Watanabe', region: 'Asie', pays: 'Japon, Corée, Vietnam', img: 'https://i.imgur.com/TcjZVaS.jpeg'},
+                                    {name: 'Elena Moretti', region: 'Europe méditerranéenne', pays: 'Italie, Espagne, Grèce', img: 'https://i.imgur.com/MO2eGWx.jpeg'},
+                                    {name: 'Carlos Mendes', region: 'Amérique latine', pays: 'Brésil, Mexique, Colombie', img: 'https://i.imgur.com/WUG4Bkz.jpeg'}
+                                ].map((chef, i) => (
+                                    <div key={i} className="min-w-[280px] liquid-glass p-4 rounded-2xl snap-center flex-shrink-0">
+                                        <img src={chef.img} alt={chef.name} className="w-full h-48 object-cover rounded-xl mb-4 grayscale hover:grayscale-0 transition-all duration-500" />
+                                        <h3 className="font-bold text-lg">{chef.name}</h3>
+                                        <p className="text-[#4A7197] text-sm mb-2">{chef.region}</p>
+                                        <p className="text-gray-400 text-xs">{chef.pays}</p>
+                                    </div>
+                                ))}
+                            </div>
+                            <p className="text-center text-xs text-gray-500 mt-4">* Toutes les allergies et restrictions alimentaires sont rigoureusement prises en compte lors de la réservation.</p>
+                        </div>
+                    );
+                case 'formules':
+                    return (
+                        <div className="space-y-10">
+                            <h2 className="font-title text-4xl text-center mb-10">Formules & Devis</h2>
+                            <div className="grid lg:grid-cols-3 gap-6 items-center">
+                                {/* Carte 1 */}
+                                <div className="liquid-glass p-8 h-[90%] flex flex-col">
+                                    <h3 className="font-title text-2xl mb-4">Essentiel</h3>
+                                    <ul className="space-y-3 text-sm text-gray-300 flex-grow mb-8">
+                                        <li>• Animateur professionnel</li>
+                                        <li>• Jeux interactifs basiques avec classement live</li>
+                                        <li>• Dégustation mini-portions par pays</li>
+                                    </ul>
+                                    <div className="w-full py-3 mt-auto flex justify-center">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/50 animate-bounce"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
+                                    </div>
+                                </div>
+                                {/* Carte 2 (Recommandé) */}
+                                <div className="liquid-glass p-10 transform scale-105 border-[#4A7197] relative flex flex-col" style={{background: 'rgba(74, 113, 151, 0.1)'}}>
+                                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-[#4A7197] text-white px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider">Populaire</div>
+                                    <h3 className="font-title text-3xl mb-4 text-[#4A7197]">Recommandé</h3>
+                                    <ul className="space-y-3 text-sm text-gray-200 flex-grow mb-8">
+                                        <li>• Animateur & DisBot en temps réel</li>
+                                        <li>• Jeux complets avec classement live</li>
+                                        <li>• Cérémonie de remise des prix (Diplômes)</li>
+                                        <li>• Livret culturel souvenir & Fiches recettes</li>
+                                        <li>• Ressources culturelles post-session</li>
+                                    </ul>
+                                    <div className="w-full py-3 mt-auto flex justify-center">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#4A7197] animate-bounce"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
+                                    </div>
+                                </div>
+                                {/* Carte 3 */}
+                                <div className="liquid-glass p-8 h-[90%] flex flex-col">
+                                    <h3 className="font-title text-2xl mb-4">Sur mesure</h3>
+                                    <ul className="space-y-3 text-sm text-gray-300 flex-grow mb-8">
+                                        <li>• Tout le contenu Recommandé</li>
+                                        <li>• Personnalisation aux couleurs de l'entreprise</li>
+                                        <li>• Documentation visuelle (Photo/Vidéo)</li>
+                                        <li>• Chef en live + Buffet gastronomique</li>
+                                        <li>• Session de suivi J+30 / Onboarding</li>
+                                    </ul>
+                                    <div className="w-full py-3 mt-auto flex justify-center">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/50 animate-bounce"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="liquid-glass p-8 max-w-2xl mx-auto mt-12">
+                                <h3 className="font-title text-2xl mb-6 text-center">Parlons de votre projet</h3>
+                                <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); alert("Demande envoyée !"); }}>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <input type="text" placeholder="Nom complet" className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-[#4A7197] transition" required />
+                                        <input type="text" placeholder="Entreprise" className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-[#4A7197] transition" required />
+                                    </div>
+                                    <input type="email" placeholder="Adresse email" className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-[#4A7197] transition" required />
+                                    <textarea placeholder="Votre message ou besoins spécifiques..." rows="4" className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-[#4A7197] transition" required></textarea>
+                                    <button type="submit" className="liquid-glass-btn w-full py-3 font-bold">Envoyer la demande</button>
+                                </form>
+                            </div>
+                        </div>
+                    );
+                case 'faq':
+                    return (
+                        <div className="space-y-12 max-w-4xl mx-auto">
+                            <h2 className="font-title text-4xl text-center">Déroulé type & FAQ</h2>
+                            
+                            {/* Timeline */}
+                            <div className="relative border-l border-white/20 ml-4 md:ml-10 space-y-8 pb-8">
+                                {[
+                                    {t: '09h00', d: 'Installation du matériel VR et du buffet dans vos locaux.'},
+                                    {t: '09h30', d: 'Accueil des participants et briefing sur l\'utilisation des casques.'},
+                                    {t: '10h00', d: 'Immersion 360° et début des jeux culturels en équipes.'},
+                                    {t: '11h30', d: 'Débriefing collectif, partages d\'expériences et remise des prix.'},
+                                    {t: '12h00', d: 'Dégustation gastronomique thématique et échanges informels.'}
+                                ].map((step, i) => (
+                                    <div key={i} className="pl-8 relative">
+                                        <div className="absolute w-4 h-4 bg-[#4A7197] rounded-full -left-[9px] top-1"></div>
+                                        <h4 className="font-bold text-lg text-[#4A7197]">{step.t}</h4>
+                                        <p className="text-gray-300">{step.d}</p>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* FAQ */}
+                            <div className="space-y-4">
+                                <h3 className="font-title text-2xl mb-6">Questions fréquentes</h3>
+                                {[
+                                    {q: 'Quel matériel devons-nous fournir ?', a: 'Seulement une salle dégagée. Nous fournissons tous les casques VR (Meta Quest), le matériel informatique et les éléments de dégustation.'},
+                                    {q: 'Combien d\'espace est nécessaire ?', a: 'Prévoyez environ 2m² par participant pour garantir une expérience VR sécurisée et confortable.'},
+                                    {q: 'Les allergies sont-elles prises en compte ?', a: 'Absolument. Un questionnaire détaillé est envoyé 2 semaines avant l\'événement pour adapter le menu de nos chefs.'},
+                                    {q: 'Quel est le délai de réservation ?', a: 'Nous recommandons de réserver au moins 4 à 6 semaines à l\'avance pour garantir la disponibilité de nos animateurs et chefs.'}
+                                ].map((faq, i) => (
+                                    <details key={i} className="liquid-glass p-4 group cursor-pointer">
+                                        <summary className="font-semibold list-none flex justify-between items-center">
+                                            {faq.q}
+                                            <span className="text-[#4A7197] group-open:rotate-45 transition-transform">+</span>
+                                        </summary>
+                                        <p className="mt-4 text-gray-300 text-sm leading-relaxed">{faq.a}</p>
+                                    </details>
+                                ))}
+                            </div>
+                        </div>
+                    );
+                case 'confiance':
+                    return (
+                        <div className="space-y-12">
+                            <h2 className="font-title text-4xl text-center mb-12">Ils nous font confiance</h2>
+                            <div className="grid md:grid-cols-3 gap-6">
+                                {[
+                                    {n: 'Sophie L.', p: 'DRH, TechCorp', t: '"Une expérience bluffante qui a fait tomber les barrières hiérarchiques. Nos équipes parlent encore du voyage au Japon !"'},
+                                    {n: 'Marc D.', p: 'Manager Inclusion, InnovBank', t: '"L\'alliance de la VR et de la gastronomie crée un ancrage mémoriel unique. C\'est la meilleure sensibilisation à la diversité que nous ayons faite."'},
+                                    {n: 'Amina B.', p: 'Directrice Générale, NexLogis', t: '"Le fait que nos propres collaborateurs soient les héros de leur culture a créé une émotion et une fierté incroyables dans l\'entreprise."'}
+                                ].map((test, i) => (
+                                    <div key={i} className="liquid-glass p-8 flex flex-col justify-between">
+                                        <p className="italic text-gray-300 mb-6">{test.t}</p>
+                                        <div>
+                                            <p className="font-bold text-[#4A7197]">{test.n}</p>
+                                            <p className="text-sm text-gray-400">{test.p}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="flex justify-center gap-12 mt-12 opacity-50 flex-wrap">
+                                {/* Logos fictifs générés en CSS pur pour l'exemple */}
+                                <div className="text-2xl font-bold font-title tracking-widest">TECHCORP</div>
+                                <div className="text-2xl font-bold font-title tracking-widest">INNOVBANK</div>
+                                <div className="text-2xl font-bold font-title tracking-widest">NEXLOGIS</div>
+                            </div>
+                        </div>
+                    );
+                default: return null;
+            }
+        };
+
+        const LoadingScreen = ({ onComplete }) => {
+            useEffect(() => {
+                const timer = setTimeout(() => {
+                    onComplete();
+                }, 3500); // Durée de l'animation
+                return () => clearTimeout(timer);
+            }, [onComplete]);
+
+            return (
+                <div className="fixed inset-0 flex flex-col items-center justify-center z-40 bg-transparent transition-opacity duration-1000">
+                    <h1 className="font-title text-5xl md:text-8xl tracking-[0.2em] text-fill-anim font-bold">DISEARTH</h1>
+                    <p className="font-sans text-[18px] tracking-[4px] mt-[12px] text-white text-fill-anim">par l'équipe R.E.D</p>
+                </div>
+            );
+        };
+
+        const GlobeView = ({ onSelectContinent }) => {
+            const mountRef = useRef(null);
+            const [globeLoaded, setGlobeLoaded] = useState(false);
+            const [showButtons, setShowButtons] = useState(false);
+            const [hoveredCont, setHoveredCont] = useState(null);
+
+            useEffect(() => {
+                if (globeLoaded) {
+                    const timer = setTimeout(() => {
+                        setShowButtons(true);
+                    }, 2700); // 2500ms (animation du globe) + 200ms de pause naturelle
+                    return () => clearTimeout(timer);
+                }
+            }, [globeLoaded]);
+            
+            useEffect(() => {
+                // Setup Three.js
+                const w = window.innerWidth;
+                const h = window.innerHeight;
+                const scene = new THREE.Scene();
+                const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 1000);
+                camera.position.z = 25; // Zoom depuis le lointain
+
+                const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+                renderer.setSize(w, h);
+                mountRef.current.appendChild(renderer.domElement);
+
+                const textureLoader = new THREE.TextureLoader();
+                
+                // Shader Material for Day/Night blending
+                const earthUniforms = {
+                    dayTexture: { value: null },
+                    nightTexture: { value: null },
+                    sunDirection: { value: new THREE.Vector3(5, 3, 5).normalize() },
+                    globalOpacity: { value: 0.0 }
+                };
+
+                const earthVS = `
+                    varying vec2 vUv;
+                    varying vec3 vNormal;
+                    void main() {
+                        vUv = uv;
+                        vNormal = normalize(normalMatrix * normal);
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `;
+
+                const earthFS = `
+                    uniform sampler2D dayTexture;
+                    uniform sampler2D nightTexture;
+                    uniform vec3 sunDirection;
+                    uniform float globalOpacity;
+                    varying vec2 vUv;
+                    varying vec3 vNormal;
+                    void main() {
+                        vec3 dayColor = texture2D(dayTexture, vUv).rgb;
+                        vec3 nightColor = texture2D(nightTexture, vUv).rgb;
+                        float intensity = dot(vNormal, sunDirection);
+                        float blend = smoothstep(-0.2, 0.2, intensity);
+                        vec3 finalColor = mix(nightColor, dayColor, blend);
+                        gl_FragColor = vec4(finalColor, globalOpacity);
+                    }
+                `;
+
+                const geometry = new THREE.SphereGeometry(5, 64, 64);
+                const material = new THREE.ShaderMaterial({
+                    uniforms: earthUniforms,
+                    vertexShader: earthVS,
+                    fragmentShader: earthFS,
+                    transparent: true
+                });
+                const earth = new THREE.Mesh(geometry, material);
+                earth.scale.setScalar(0.001); // Évite le flash noir initial
+                scene.add(earth);
+
+                // Lumières additionnelles pour les calculs internes
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.1);
+                scene.add(ambientLight);
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+                dirLight.position.set(5, 3, 5);
+                scene.add(dirLight);
+
+                // Texture Loading avec Preload
+                let isLoaded = false;
+                let loadedCount = 0;
+                const checkLoad = () => {
+                    loadedCount++;
+                    if(loadedCount === 2) {
+                        isLoaded = true;
+                        setGlobeLoaded(true);
+                    }
+                };
+
+                textureLoader.load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg', (tex) => {
+                    earthUniforms.dayTexture.value = tex;
+                    checkLoad();
+                });
+                textureLoader.load('https://unpkg.com/three-globe/example/img/earth-night.jpg', (tex) => {
+                    earthUniforms.nightTexture.value = tex;
+                    checkLoad();
+                });
+
+                // Animation & Interactions
+                let isDragging = false;
+                let previousMousePosition = { x: 0, y: 0 };
+                let targetRotation = { x: 0, y: 0 };
+                let targetPositionX = 0; // Pour décaler la Terre
+
+                let startTime = null;
+                const duration = 2500; // Ralenti à 2.5 secondes
+
+                const animate = (time) => {
+                    requestAnimationFrame(animate);
+
+                    if (isLoaded) {
+                        // Intro zoom ne démarre qu'une fois les textures chargées
+                        if (!startTime) startTime = time;
+                        const elapsed = time - startTime;
+
+                        if (elapsed < duration) {
+                            const progress = elapsed / duration;
+                            // approximation cubic-bezier(0.16, 1, 0.3, 1) très douce
+                            const ease = 1 - Math.pow(1 - progress, 4); 
+                            
+                            camera.position.z = 25 - (15 * ease); // Ease out, finit à z=10
+                            earth.scale.setScalar(0.001 + ease * 0.999);
+                            earthUniforms.globalOpacity.value = ease;
+                        } else {
+                            earth.scale.setScalar(1);
+                            earthUniforms.globalOpacity.value = 1.0;
+                            camera.position.z = 10;
+                        }
+
+                        // Rotation auto + inertie
+                        if (!isDragging) {
+                            targetRotation.y += 0.001;
+                        }
+                        earth.rotation.y += (targetRotation.y - earth.rotation.y) * 0.1;
+                        earth.rotation.x += (targetRotation.x - earth.rotation.x) * 0.1;
+
+                        // Décalage position X (pour laisser place au panneau)
+                        earth.position.x += (targetPositionX - earth.position.x) * 0.05;
+                    }
+
+                    renderer.render(scene, camera);
+                };
+                requestAnimationFrame(animate);
+
+                // Events
+                const onMouseDown = (e) => { isDragging = true; previousMousePosition = { x: e.offsetX, y: e.offsetY }; };
+                const onMouseMove = (e) => {
+                    if (isDragging) {
+                        const deltaMove = { x: e.offsetX - previousMousePosition.x, y: e.offsetY - previousMousePosition.y };
+                        targetRotation.y += deltaMove.x * 0.005;
+                        targetRotation.x += deltaMove.y * 0.005;
+                        // Limiter la rotation X (Pôles)
+                        targetRotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, targetRotation.x));
+                        previousMousePosition = { x: e.offsetX, y: e.offsetY };
+                    }
+                };
+                const onMouseUp = () => { isDragging = false; };
+                const onWheel = (e) => {
+                    targetRotation.y += e.deltaY * 0.002;
+                };
+
+                renderer.domElement.addEventListener('mousedown', onMouseDown);
+                window.addEventListener('mousemove', onMouseMove);
+                window.addEventListener('mouseup', onMouseUp);
+                renderer.domElement.addEventListener('wheel', onWheel);
+
+                // Exposer la fonction pour décaler la Terre depuis le composant parent
+                window.shiftEarth = (shiftLeft) => {
+                    targetPositionX = shiftLeft ? -3 : 0;
+                };
+
+                // Resize
+                const handleResize = () => {
+                    camera.aspect = window.innerWidth / window.innerHeight;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(window.innerWidth, window.innerHeight);
+                };
+                window.addEventListener('resize', handleResize);
+
+                return () => {
+                    window.removeEventListener('resize', handleResize);
+                    window.removeEventListener('mousemove', onMouseMove);
+                    window.removeEventListener('mouseup', onMouseUp);
+                    if(mountRef.current) mountRef.current.removeChild(renderer.domElement);
+                    delete window.shiftEarth;
+                };
+            }, []);
+
+            return (
+                <div className="absolute inset-0 z-0">
+                    <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing"></div>
+                    
+                    {/* UI Flottante pour la sélection de continents, plus fiable que le raycasting pur en 1 fichier */}
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-wrap justify-center gap-4 w-full max-w-2xl pointer-events-none z-10 px-4 mt-48">
+                        {CONTINENTS.map((cont, index) => (
+                            <button 
+                                key={cont.id}
+                                onMouseEnter={() => setHoveredCont(cont.id)}
+                                onMouseLeave={() => { if(hoveredCont === cont.id) setHoveredCont(null); }}
+                                onClick={() => {
+                                    if(window.shiftEarth) window.shiftEarth(true);
+                                    onSelectContinent(cont);
+                                }}
+                                className={`liquid-glass-btn px-6 py-2 text-sm font-semibold tracking-wider capitalize ${showButtons ? 'pointer-events-auto' : 'pointer-events-none'} ${hoveredCont === cont.id ? 'bg-white text-[#4A7197]' : ''}`}
+                                style={{ 
+                                    opacity: showButtons ? 1 : 0, 
+                                    transition: `opacity 300ms ease ${showButtons ? index * 100 : 0}ms, box-shadow 150ms ease` 
+                                }}
+                            >
+                                {cont.name}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const CountryPanel = ({ continent, onSelectCountry, onClose }) => {
+            if (!continent) return null;
+            return (
+                <div className="fixed right-0 top-0 h-full w-full md:w-[400px] liquid-glass rounded-none md:rounded-l-3xl p-6 z-20 flex flex-col animate-[fadeIn_0.5s_ease]">
+                    <div className="flex justify-between items-center mb-6 mt-20">
+                        <h2 className="font-title text-3xl text-[#4A7197] capitalize">{continent.name}</h2>
+                        <button onClick={() => {
+                            if(window.shiftEarth) window.shiftEarth(false);
+                            onClose();
+                        }} className="p-2 hover:bg-white/10 rounded-full transition">
+                            <Icons.X />
+                        </button>
+                    </div>
+                    <div className="flex-grow overflow-y-auto pr-2 space-y-2">
+                        {continent.countries.map(country => (
+                            <button 
+                                key={country.name}
+                                onClick={() => onSelectCountry(country)}
+                                className="w-full text-left p-4 rounded-xl hover:bg-white/10 transition-colors flex items-center gap-4 group"
+                            >
+                                <span className="text-2xl group-hover:scale-110 transition-transform">{country.flag}</span>
+                                <span className="font-semibold text-gray-200 group-hover:text-white capitalize">{country.name}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const TransitionScreen = ({ country, onComplete }) => {
+            useEffect(() => {
+                const timer = setTimeout(onComplete, 2500);
+                return () => clearTimeout(timer);
+            }, [onComplete]);
+
+            return (
+                <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-md animate-[fadeIn_0.5s_ease]">
+                    <div className="text-6xl mb-6 animate-bounce">{country.flag}</div>
+                    <h2 className="font-title text-4xl mb-4 text-center capitalize">{country.name}</h2>
+                    <p className="text-xl text-gray-300 font-light text-center max-w-lg">Préparez-vous pour un voyage plein de richesse.</p>
+                </div>
+            );
+        };
+
+        const View360 = ({ country, onBack, onPlay }) => {
+            const isActive = ACTIVE_360_COUNTRIES.includes(country.name);
+            const panoRef = useRef(null);
+            
+            useEffect(() => {
+                let viewer = null;
+                if (isActive && panoRef.current) {
+                    const imgUrl = PANO_URLS[country.name] || 'https://pannellum.org/images/alma.jpg';
+                    
+                    // Configuration Pannellum stricte demandée
+                    viewer = pannellum.viewer('panorama', {
+                        type: 'equirectangular',
+                        panorama: imgUrl,
+                        autoLoad: true,
+                        autoRotate: -2,
+                        compass: false,
+                        showControls: false
+                    });
+                }
+                return () => {
+                    if(viewer) viewer.destroy();
+                };
+            }, [isActive, country.name]);
+
+            return (
+                <div className="fixed inset-0 z-30 bg-[#000008] animate-[fadeIn_1s_ease]">
+                    {isActive ? (
+                        <div ref={panoRef} id="panorama"></div>
+                    ) : (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-lg">
+                            <span className="text-8xl mb-6 opacity-50">{country.flag}</span>
+                            <h2 className="font-title text-3xl mb-4 text-gray-400 text-center px-4">La visite de ce pays sera bientôt disponible</h2>
+                        </div>
+                    )}
+
+                    {/* UI Overlays pour les pays actifs (Titre + Bouton Play) */}
+                    {isActive && (
+                        <div className="absolute top-8 right-8 liquid-glass px-6 py-3 pointer-events-none">
+                            <h2 className="font-title text-2xl flex items-center gap-3 capitalize">
+                                <span>{country.flag}</span> {country.name}
+                            </h2>
+                        </div>
+                    )}
+
+                    <div className="absolute bottom-8 left-8 right-8 flex justify-between pointer-events-none">
+                        <button onClick={onBack} className="pointer-events-auto liquid-glass-btn px-6 py-3 flex items-center gap-2 font-semibold">
+                            ← Retour au globe
+                        </button>
+                        
+                        {/* On affiche le bouton "Passer aux jeux" uniquement si le pays est géré */}
+                        {isActive && (
+                            <button onClick={onPlay} className="pointer-events-auto bg-white text-black px-8 py-3 rounded-full flex items-center gap-2 font-bold hover:scale-105 transition-transform shadow-[0_0_20px_rgba(255,255,255,0.3)]">
+                                Passer aux jeux <Icons.Gamepad />
+                            </button>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const COUNTRY_DILEMMAS = {
+            'Japon': [
+                { q: "Au cours d'une réunion, un long silence s'installe après votre proposition.", opts: ["Je romps le silence pour relancer.", "J'attends respectueusement sans parler.", "Je change complètement de sujet."], ans: 1, exp: "Au Japon, le silence est un espace de réflexion essentiel (Haragei). L'interrompre est perçu comme un manque de respect ou d'impatience." },
+                { q: "On vous tend une carte de visite lors d'une première rencontre.", opts: ["Je la prends d'une main et la range.", "Je la prends à deux mains et la lis attentivement.", "Je note des informations dessus."], ans: 1, exp: "Le Meishi (carte de visite) représente la personne. La recevoir à deux mains et la lire avec attention est une marque de respect fondamentale." },
+                { q: "Vous entrez dans la salle de réunion avec vos hôtes japonais.", opts: ["Je m'assois au fond, à la place la plus confortable.", "J'attends qu'on m'indique ma place.", "Je m'assois près de la porte."], ans: 1, exp: "Le placement (Kamiza/Shimoza) est strictement hiérarchique. Attendez toujours que votre hôte vous place pour respecter l'harmonie." },
+                { q: "Lors d'un dîner, votre verre de bière est vide.", opts: ["Je me sers moi-même.", "Je demande au serveur une nouvelle bouteille.", "Je sers mes voisins et j'attends."], ans: 2, exp: "Au Japon, on ne se sert jamais soi-même (tejaku). On sert les autres, et ils veilleront à ce que votre verre soit rempli en retour." },
+                { q: "Vous devez signaler une erreur dans le document de votre partenaire.", opts: ["Je le pointe directement en réunion.", "J'envoie un email formel avec les corrections.", "J'en parle en privé de manière indirecte."], ans: 2, exp: "La préservation de la 'face' est cruciale. Une critique directe en public crée un profond malaise. Privilégiez l'approche indirecte." }
+            ],
+            'Sénégal': [
+                { q: "La réunion devait commencer à 10h, il est 10h15 et la moitié des participants manque.", opts: ["J'exprime mon agacement.", "Je commence sans eux.", "J'accepte cette flexibilité avec le sourire."], ans: 2, exp: "Le rapport au temps est polychronique au Sénégal. La ponctualité est flexible et les relations priment sur l'horloge stricte." },
+                { q: "Vous saluez un nouveau partenaire local.", opts: ["Un simple 'Bonjour' suffit.", "Je prends le temps de demander des nouvelles de sa famille et sa santé.", "Je vais droit au but pour être efficace."], ans: 1, exp: "Les salutations sont un rituel social incontournable. Demander des nouvelles de la famille montre votre respect et établit la confiance." },
+                { q: "Vous êtes invité à partager le repas commun (plat unique).", opts: ["J'utilise ma main gauche pour manger.", "Je mange uniquement avec la main droite.", "Je demande des couverts individuels."], ans: 1, exp: "Dans les repas partagés traditionnels, seule la main droite doit être utilisée pour manger, la main gauche étant considérée comme impure." },
+                { q: "Un subordonné évite de vous regarder dans les yeux pendant qu'il vous parle.", opts: ["Je lui demande de me regarder.", "Je le prends pour un manque de franchise.", "Je comprends que c'est une marque de respect."], ans: 2, exp: "Baisser le regard face à un aîné ou un supérieur est une marque de respect et de déférence dans la culture sénégalaise, non une fuite." },
+                { q: "On vous offre un thé à la fin d'une négociation.", opts: ["Je refuse poliment car je suis pressé.", "J'accepte, c'est le symbole de la Teranga.", "Je demande un café à la place."], ans: 1, exp: "Refuser le thé ou la nourriture offerte peut être perçu comme un rejet de l'hospitalité légendaire du pays (la Teranga)." }
+            ],
+            'Brésil': [
+                { q: "Votre partenaire brésilien vous serre la main longuement, vous donne une tape dans le dos et vous appelle par votre prénom dès la première rencontre. Que pensez-vous ?", opts: ["C'est parfaitement normal.", "Il essaie de me manipuler.", "C'est un comportement très impoli."], ans: 0, exp: "Les Brésiliens sont chaleureux et expressifs dès le premier contact. La proximité physique et l'informalité immédiate sont des signes de bienveillance, pas d'impudeur." },
+                { q: "Votre réunion à São Paulo était prévue à 14h. Il est 14h40, votre partenaire arrive en s'excusant à peine. Comment réagissez-vous ?", opts: ["Je fais un scandale.", "Je souris et continue naturellement.", "Je quitte la salle."], ans: 1, exp: "La ponctualité au Brésil est flexible, surtout dans un contexte informel ou social. Le retard n'est pas un manque de respect." },
+                { q: "Vous refusez de danser lors d'une fête brésilienne en disant que vous ne savez pas. Quelle est la réaction probable ?", opts: ["Ils vont vous ignorer toute la soirée.", "Vos hôtes vont insister et vous apprendre.", "Ils vont se moquer de vous."], ans: 1, exp: "La danse est un lien social fondamental au Brésil. Refuser catégoriquement peut être perçu comme de la timidité excessive ou un rejet de leur culture." },
+                { q: "Un collègue brésilien vous dit 'a gente se fala' en fin de réunion. Que cela signifie-t-il réellement ?", opts: ["Il va m'appeler ce soir.", "C'est une formule de politesse sans engagement réel.", "Il ne veut plus me parler."], ans: 1, exp: "Littéralement 'on se parle', mais au Brésil c'est souvent une formule de politesse sans engagement réel. Ne comptez pas forcément sur un rappel si aucune date précise n'a été fixée." },
+                { q: "Vous êtes invité dans une maison brésilienne. Vous apportez du vin comme cadeau. Comment est-il perçu ?", opts: ["Comme une insulte.", "Très positivement.", "Comme une habitude ennuyeuse."], ans: 1, exp: "Apporter quelque chose à manger ou à boire est un geste de participation et de générosité très apprécié dans la culture brésilienne de convivialité." }
+            ],
+            'Singapour': [
+                { q: "Lors d'une réunion d'affaires à Singapour, votre partenaire vous remet sa carte de visite à deux mains en s'inclinant légèrement. Vous la prenez d'une main et la posez sans la regarder. Comment réagit-il ?", opts: ["Il ne remarque rien.", "Il est flatté de votre efficacité.", "Il est offensé."], ans: 2, exp: "À Singapour, la carte de visite est un symbole de respect et d'identité professionnelle. Il faut la recevoir à deux mains, la lire attentivement et la poser devant soi avec soin, jamais la fourrer dans une poche." },
+                { q: "Vous invitez un collègue singapourien à déjeuner. Il refuse votre invitation trois fois de suite. Que faites-vous ?", opts: ["J'insiste poliment une quatrième fois.", "Je me vexe et ne l'invite plus.", "Je l'ignore et vais manger seul."], ans: 0, exp: "À Singapour, refuser plusieurs fois avant d'accepter est une marque de politesse et de modestie, pas un vrai refus." },
+                { q: "Pendant une négociation à Singapour, votre interlocuteur reste silencieux de longues secondes après votre proposition. Que faites-vous ?", opts: ["Je parle plus fort pour le réveiller.", "J'attends en silence.", "Je baisse mon prix immédiatement."], ans: 1, exp: "Le silence est une marque de réflexion sérieuse à Singapour. Le combler par de la parole serait perçu comme de l'impatience ou un manque de maturité professionnelle." },
+                { q: "Vous offrez un cadeau à votre partenaire singapourien. Il le pose de côté sans l'ouvrir devant vous. Êtes-vous offensé ?", opts: ["Oui, c'est très impoli.", "Non, c'est la norme.", "Je le force à l'ouvrir devant moi."], ans: 1, exp: "Ouvrir un cadeau devant l'offrant serait considéré comme impoli et trop avide à Singapour. Il l'ouvrira en privé avec respect." },
+                { q: "Vous terminez votre assiette dans un restaurant singapourien chez un particulier. Votre hôte vous en propose une autre portion. Que faites-vous ?", opts: ["Je refuse pour ne pas paraître gourmand.", "J'accepte avec plaisir.", "Je quitte la table discrètement."], ans: 1, exp: "Finir son assiette et accepter une nouvelle portion est un compliment pour l'hôte à Singapour. Refuser pourrait laisser entendre que le plat ne vous a pas plu." }
+            ],
+            'Norvège': [
+                { q: "Lors d'une réunion à Oslo, personne ne parle, tout le monde écoute calmement sans réagir. Vous interprétez cela comme ?", opts: ["De l'ennui ou du désintérêt.", "Du respect et de l'attention.", "Un manque de compréhension."], ans: 1, exp: "En Norvège, écouter en silence est une marque de sérieux. Couper la parole ou réagir bruyamment serait perçu comme impoli." },
+                { q: "Vous invitez un collègue norvégien à dîner. Il propose de partager l'addition à parts égales. Vous insistez pour payer la totalité. Comment réagit-il ?", opts: ["Il est flatté et vous remercie.", "Il est mal à l'aise.", "Il accepte mais se sent redevable."], ans: 1, exp: "En Norvège, le principe d'égalité est fondamental. Insister pour payer tout seul peut être perçu comme condescendant ou comme si vous cherchez à dominer la relation." },
+                { q: "Vous rendez visite à un Norvégien chez lui. Il ne vous propose rien à manger ni à boire pendant 2 heures. Que pensez-vous ?", opts: ["C'est un manque de respect flagrant.", "C'est normal.", "Il veut que je parte."], ans: 1, exp: "Les Norvégiens ne pratiquent pas l'hospitalité ostentatoire. L'absence d'offre spontanée n'est pas un manque de respect, c'est simplement la culture de la discrétion et de l'autonomie." },
+                { q: "Votre partenaire norvégien vous appelle par son prénom dès la première rencontre sans se présenter formellement. Que pensez-vous ?", opts: ["C'est parfaitement normal.", "C'est très familier et déplacé.", "C'est une erreur d'inattention."], ans: 0, exp: "La Norvège est une société très égalitaire où les titres et formules formelles sont presque inexistants, même en milieu professionnel." },
+                { q: "Vous faites une randonnée en Norvège et croisez des locaux. Vous les saluez chaleureusement. Ils répondent à peine. Sont-ils impolis ?", opts: ["Oui, ils sont mal élevés.", "Non, c'est une norme culturelle.", "Ils n'aiment pas les étrangers."], ans: 1, exp: "Les Norvégiens sont naturellement réservés avec les inconnus en extérieur. Ce n'est pas de la froideur, c'est une norme culturelle de discrétion dans les espaces publics." }
+            ],
+            'Arabie Saoudite': [
+                { q: "Vous êtes en réunion d'affaires à Riyad. Votre partenaire s'arrête soudainement au milieu de la réunion pour prier. Que faites-vous ?", opts: ["Je continue à parler de mon côté.", "Je quitte la salle.", "J'attends patiemment en silence."], ans: 2, exp: "La prière est une obligation religieuse fondamentale en Arabie Saoudite. Interrompre ou montrer de l'impatience serait une grave offense." },
+                { q: "Un partenaire saoudien vous offre du café à l'arrivée. Vous n'aimez pas le café. Que faites-vous ?", opts: ["Je refuse poliment.", "J'accepte et bois une gorgée.", "Je demande un thé à la place."], ans: 1, exp: "Refuser le café (qahwa) est perçu comme un rejet de l'hospitalité, l'une des valeurs les plus sacrées de la culture saoudienne." },
+                { q: "Vous tendez un document à votre interlocuteur saoudien de la main gauche. Il semble offensé. Pourquoi ?", opts: ["Je devais le poser sur la table.", "La main gauche est considérée comme impure.", "Il n'aime pas le contenu du document."], ans: 1, exp: "La main gauche est considérée comme impure dans la culture islamique. Tout échange — documents, cadeaux, nourriture — doit se faire de la main droite." },
+                { q: "Votre réunion à Djeddah est prévue à 9h. Votre partenaire arrive à 10h30 sans s'excuser. Comment réagissez-vous ?", opts: ["Je ne dis rien et continue naturellement.", "Je lui fais remarquer son retard.", "Je demande à reporter la réunion."], ans: 0, exp: "La notion de temps en Arabie Saoudite est flexible. Les relations humaines priment sur la ponctualité stricte." },
+                { q: "Vous êtes invité à dîner dans une famille saoudienne. La nourriture est servie en abondance et on vous resert sans cesse. Que faites-vous ?", opts: ["Je refuse fermement pour ne pas gaspiller.", "Je mange généreusement et remercie.", "Je pars avant le dessert."], ans: 1, exp: "L'hospitalité par la nourriture est au cœur de la culture saoudienne. Refuser de manger ou manger peu est perçu comme une insulte à l'hôte." }
+            ],
+            'Grèce': [
+                { q: "Vous proposez à votre partenaire grec de payer l'addition au restaurant. Il insiste pour payer lui-même. Que faites-vous ?", opts: ["J'insiste encore plus pour payer la moitié.", "Je le laisse payer et remercie chaleureusement.", "Je paie discrètement le serveur."], ans: 1, exp: "En Grèce, inviter quelqu'un et payer pour lui est un acte de fierté et de générosité. Insister pour partager peut blesser son honneur." },
+                { q: "Votre interlocuteur grec hoche la tête de haut en bas. Cela signifie-t-il 'oui' ?", opts: ["Toujours.", "Pas forcément.", "Jamais."], ans: 1, exp: "En Grèce, hocher la tête de haut en bas peut signifier 'non' selon le contexte. Un léger recul de la tête accompagné d'un claquement de langue signifie clairement 'non'." },
+                { q: "Vous êtes invité dans une famille grecque. Vous arrivez à l'heure pile. La maîtresse de maison est encore en train de cuisiner. Êtes-vous en avance ?", opts: ["Non, c'est elle qui est en retard.", "Oui, légèrement.", "Non, c'est l'heure exacte."], ans: 1, exp: "En Grèce, arriver 15 à 30 minutes après l'heure convenue est la norme sociale pour un dîner. Arriver à l'heure exacte peut surprendre l'hôte qui n'est pas encore prêt." },
+                { q: "Un Grec vous dit 'Ela !' avec enthousiasme. Que veut-il dire ?", opts: ["C'est une insulte.", "C'est une expression polyvalente.", "Il demande le silence."], ans: 1, exp: "C'est une expression polyvalente qui peut signifier 'viens', 'vas-y', 'bien sûr', 'c'est bon' ou même 'incroyable !' selon le ton. C'est l'un des mots les plus utilisés de la langue grecque moderne." },
+                { q: "Vous offrez un cadeau à des hôtes grecs. Que choisissez-vous d'éviter absolument ?", opts: ["Du vin.", "Des fleurs.", "Les couteaux ou ciseaux."], ans: 2, exp: "En Grèce, offrir un objet tranchant symbolise la rupture de la relation. Préférez du vin, des fleurs ou des douceurs." }
+            ],
+            // Default scenarios for other countries
+            'Générique': [
+                { q: "Vous arrivez dans un pays étranger pour négocier.", opts: ["J'impose mes méthodes.", "J'observe et je m'adapte aux coutumes locales.", "Je reste neutre et distant."], ans: 1, exp: "L'adaptation culturelle est la clé du succès international." },
+                { q: "On vous sert un plat local que vous ne connaissez pas.", opts: ["Je goûte pour faire honneur à mon hôte.", "Je refuse catégoriquement.", "Je demande un plat occidental."], ans: 0, exp: "Partager la nourriture locale est le premier pas vers l'acceptation culturelle." },
+                { q: "La notion du temps semble différente ici.", opts: ["Je m'énerve du retard.", "Je reste flexible et patient.", "Je pars si ce n'est pas à l'heure."], ans: 1, exp: "La conception du temps (monochronique vs polychronique) varie grandement d'une culture à l'autre." },
+                { q: "Le style de communication est très indirect.", opts: ["J'exige des réponses claires ('Oui' ou 'Non').", "J'apprends à lire entre les lignes.", "Je les accuse de mentir."], ans: 1, exp: "Dans les cultures à contexte fort, le message implicite est plus important que les mots prononcés." },
+                { q: "La hiérarchie semble très stricte.", opts: ["Je traite le stagiaire comme le PDG.", "Je respecte les codes de déférence locaux.", "J'ignore leur organisation."], ans: 1, exp: "Comprendre et respecter la distance hiérarchique locale évite les impairs protocolaires." }
+            ]
+        };
+
+        const COUNTRY_DETECTIVES = {
+            'Japon': [
+                { clues: ["Je suis un art martial ancien.", "Je mets en scène des lutteurs de grande taille.", "Le sel est jeté pour purifier l'arène.", "Mon nom est Sumo."], ans: "Japon", exp: "Le Sumo est le sport national du Japon, profondément lié aux rituels shintoïstes." },
+                { clues: ["Je suis une boisson millénaire.", "On me prépare avec un fouet en bambou.", "Je suis au cœur d'une cérémonie stricte.", "Je suis le thé Matcha."], ans: "Japon", exp: "La cérémonie du thé (Chanoyu) est un pilier de la culture japonaise, symbole d'harmonie et de respect." },
+                { clues: ["Je suis un type d'hébergement.", "On y dort sur des tatamis.", "Le sol est couvert de futons.", "Je suis un Ryokan."], ans: "Japon", exp: "Les Ryokan sont des auberges traditionnelles offrant une immersion totale dans le mode de vie historique." },
+                { clues: ["Je marque le début du printemps.", "Je suis éphémère et poétique.", "Les Japonais pique-niquent sous mes branches.", "Je suis la fleur de cerisier (Sakura)."], ans: "Japon", exp: "L'Hanami (contemplation des fleurs) célèbre la beauté éphémère de la nature." },
+                { clues: ["Je suis un train.", "Je suis le symbole de la ponctualité.", "Mon nez est allongé pour l'aérodynamisme.", "Je suis le Shinkansen."], ans: "Japon", exp: "Le TGV japonais incarne l'alliance parfaite entre tradition et ultra-modernité technologique." }
+            ],
+            'Sénégal': [
+                { clues: ["Je suis un arbre majestueux.", "Mon tronc est énorme.", "On me trouve souvent au centre des villages.", "Je suis le Baobab."], ans: "Sénégal", exp: "Le Baobab est l'emblème du Sénégal, symbole de longévité et de sagesse." },
+                { clues: ["Je suis le plat national.", "Je suis composé de riz rouge et de poisson.", "Mon nom signifie 'Riz au poisson'.", "Je suis le Thiéboudienne."], ans: "Sénégal", exp: "Ce plat illustre l'importance de la pêche et de la convivialité lors des repas partagés." },
+                { clues: ["Je suis un instrument de musique.", "Je suis une petite harpe-luth.", "Je suis joué par les griots.", "Je suis la Kora."], ans: "Sénégal", exp: "La Kora est l'instrument roi des griots, les conteurs et gardiens de l'histoire orale en Afrique de l'Ouest." },
+                { clues: ["Je suis une ville.", "J'étais autrefois une île de la traite des esclaves.", "Aujourd'hui, je suis un symbole de mémoire avec des maisons colorées.", "Je suis l'Île de Gorée."], ans: "Sénégal", exp: "L'Île de Gorée, au large de Dakar, est un lieu de mémoire bouleversant et classé à l'UNESCO." },
+                { clues: ["Je suis un concept social fondamental.", "Je dicte l'hospitalité absolue.", "Je signifie qu'il y a toujours de la place pour un invité.", "Je suis la Teranga."], ans: "Sénégal", exp: "La Teranga (hospitalité en wolof) est la fierté et le cœur de l'identité sénégalaise." }
+            ],
+            'Brésil': [
+                { clues: ["C'est la fête la plus célèbre du Brésil, connue dans le monde entier", "Elle a lieu chaque année avant le début du Carême catholique", "Des chars décorés, des danseurs en plumes et des sambas envahissent les rues", "Rio de Janeiro en est la capitale mondiale, avec le célèbre Sambódromo"], ans: "Le Carnaval de Rio", exp: "Le Carnaval est l'expression ultime de la joie, du mélange culturel et de la musique brésilienne." },
+                { clues: ["C'est le plat national du Brésil, servi chaque samedi dans de nombreuses familles", "Il est composé de haricots noirs mijotés avec diverses viandes fumées et salées", "Il est accompagné de riz, de chou sauté, d'orange et de farine de manioc", "Son origine remonte aux esclaves africains qui cuisinaient les restes de viande"], ans: "La Feijoada", exp: "Plat traditionnel par excellence, la Feijoada rassemble la famille et les amis le week-end." },
+                { clues: ["C'est un art martial brésilien qui ressemble aussi à une danse", "Il se pratique en cercle appelé 'roda', accompagné de musique et de chants", "Il a été créé par les esclaves africains au Brésil comme forme de résistance déguisée", "L'instrument principal qui l'accompagne s'appelle le berimbau"], ans: "La Capoeira", exp: "La Capoeira est un symbole de résistance, de liberté et de fusion culturelle afro-brésilienne." },
+                { clues: ["C'est un cocktail alcoolisé emblématique du Brésil", "Il est composé de citron vert pilé, de sucre de canne et d'alcool de canne", "L'alcool utilisé s'appelle la cachaça, distillé à partir de jus de canne fermenté", "Il est classé parmi les cocktails les plus consommés au monde"], ans: "La Caipirinha", exp: "La Caipirinha est la boisson nationale, souvent partagée lors de rassemblements festifs." },
+                { clues: ["C'est une langue dans la langue, un parler typique des Brésiliens", "Le mot 'saudade' en fait partie et n'a pas d'équivalent exact en français", "Il désigne un sentiment mélancolique de nostalgie pour quelque chose ou quelqu'un d'absent", "Fernando Pessoa, poète lusophone, en a fait le symbole de l'âme brésilienne et portugaise"], ans: "La Saudade", exp: "La saudade exprime une mélancolie joyeuse qui définit une grande partie de l'âme culturelle brésilienne." }
+            ],
+            'Singapour': [
+                { clues: ["C'est un plat emblématique servi dans les hawker centres", "Il s'agit d'un plat de riz poché dans un bouillon délicat", "La viande est blanche, tendre, accompagnée de sauce au gingembre et sauce soja", "Son nom vient de la ville de Hainan en Chine, d'où sont originaires les immigrants qui l'ont apporté"], ans: "Le Hainanese Chicken Rice", exp: "Ce plat illustre la fusion et l'héritage multiculturel très présent dans la gastronomie singapourienne." },
+                { clues: ["C'est un lieu de vie sociale incontournable à Singapour", "On y trouve des dizaines de stands de nourriture sous un même toit", "Les repas y coûtent entre 3 et 6 dollars singapouriens", "Classés au patrimoine immatériel de l'UNESCO en 2020"], ans: "Les Hawker Centres", exp: "Véritables cœurs battants de la ville, ils réunissent toutes les couches sociales autour de repas partagés." },
+                { clues: ["C'est une loi singapourienne qui surprend beaucoup de touristes", "Elle concerne un fruit tropical très odorant", "Ce fruit est interdit dans les transports en commun, hôtels et lieux publics", "Son odeur est si forte qu'il est surnommé 'le roi des fruits'"], ans: "L'interdiction du Durian dans les lieux publics", exp: "Le Durian dégage une odeur très forte, ce qui justifie son interdiction pour préserver le confort de tous." },
+                { clues: ["C'est un quartier historique de Singapour aux couleurs vives", "Ses maisons coloniales aux façades colorées sont classées patrimoine", "Il est habité historiquement par la communauté indienne tamoule", "Son nom signifie 'Little India' et il abrite le temple Sri Veeramakaliamman"], ans: "Little India", exp: "Ce quartier témoigne de la diversité ethnique et de l'harmonie des communautés de Singapour." },
+                { clues: ["C'est une règle sociale très forte à Singapour", "Elle s'applique dans les files d'attente, transports, restaurants", "Les Singapouriens utilisent un objet inattendu pour 'réserver' leur place", "Un paquet de mouchoirs posé sur une table suffit à indiquer qu'une place est prise"], ans: "Le 'Chope'", exp: "Le 'Chope' est une coutume locale très respectée qui témoigne de la confiance sociale au sein de Singapour." }
+            ],
+            'Norvège': [
+                { clues: ["C'est un concept philosophique norvégien de vie quotidienne", "Il désigne l'art de prendre du plaisir dans les petites choses simples", "Une bougie allumée, un thé chaud et un bon livre en font partie", "Il ressemble au concept danois 'Hygge' mais avec une touche plus sobre et nature"], ans: "Le Koselig", exp: "Le Koselig aide les Norvégiens à traverser les longs hivers en créant de la chaleur intérieure et humaine." },
+                { clues: ["C'est un phénomène naturel visible dans le ciel norvégien", "Il apparaît uniquement la nuit, entre septembre et mars", "Des rideaux verts, roses et violets dansent dans le ciel", "Les Norvégiens le considèrent comme un spectacle sacré lié à leurs ancêtres vikings"], ans: "L'Aurore Boréale", exp: "Les aurores boréales (Nordlys) sont une attraction majeure et sont profondément ancrées dans la mythologie nordique." },
+                { clues: ["C'est un plat traditionnel norvégien consommé à Noël", "Il s'agit d'une morue séchée réhydratée dans de l'eau et de la soude", "Sa texture est gélatineuse et son odeur très prononcée", "Son nom signifie littéralement 'poisson à la lessive' en norvégien"], ans: "Le Lutefisk", exp: "Ce plat historique symbolise les techniques anciennes de préservation de la nourriture par les populations du Nord." },
+                { clues: ["C'est une activité pratiquée par presque tous les Norvégiens dès l'enfance", "Elle se pratique en forêt ou en montagne, seul ou en famille", "Il existe un droit légal d'accès à toute la nature norvégienne pour la pratiquer", "Ce droit s'appelle 'Allemannsretten', le droit de tous"], ans: "Le Friluftsliv", exp: "La 'vie en plein air' illustre la connexion viscérale et vitale des Norvégiens avec la nature sauvage." },
+                { clues: ["C'est un bateau emblématique de la civilisation norvégienne ancienne", "Il était utilisé pour explorer, commercer et conquérir de nouveaux territoires", "Sa proue est ornée d'une tête de dragon sculptée", "Les guerriers qui le naviguaient sont devenus une légende mondiale"], ans: "Le Drakkar Viking", exp: "L'histoire navale viking fait la fierté de la Norvège moderne et témoigne de leur esprit d'exploration." }
+            ],
+            'Arabie Saoudite': [
+                { clues: ["C'est un vêtement traditionnel porté par les hommes saoudiens", "Il s'agit d'une longue robe blanche portée au quotidien", "Il est accompagné d'un couvre-chef à carreaux rouges et blancs", "Ce couvre-chef s'appelle le Ghutrah, maintenu par un cercle noir appelé Iqal"], ans: "La Thobe et le Ghutrah", exp: "Ce vêtement, très adapté au climat désertique, est un symbole fort d'identité et d'égalité dans le pays." },
+                { clues: ["C'est un art traditionnel saoudien classé à l'UNESCO", "Il se pratique avec un oiseau dressé à la chasse", "Il était pratiqué par les Bédouins dans le désert pour se nourrir", "L'oiseau utilisé est souvent un faucon pèlerin ou sacre"], ans: "La Fauconnerie", exp: "La fauconnerie bédouine reste une passion de prestige, rappelant la vie rude et noble du désert." },
+                { clues: ["C'est une boisson chaude emblématique servie à chaque visite en Arabie Saoudite", "Elle est de couleur jaune-vert, très légèrement amère", "Elle est aromatisée à la cardamome et parfois au safran", "Refuser cette boisson lors d'une visite est considéré comme impoli"], ans: "Le Qahwa (Café arabe)", exp: "Le service du café arabe est le geste suprême et rituel de l'hospitalité saoudienne." },
+                { clues: ["C'est le mois le plus important du calendrier islamique", "Pendant ce mois, manger, boire et fumer en public est interdit dans la journée", "La rupture du jeûne au coucher du soleil s'appelle l'Iftar", "Ce mois se termine par une grande fête célébrée dans tout le monde musulman"], ans: "Le Ramadan", exp: "L'Arabie Saoudite abritant les lieux saints, le Ramadan y est observé avec une piété et une ferveur communautaire absolues." },
+                { clues: ["C'est le lieu le plus sacré de l'Islam, situé en Arabie Saoudite", "Des millions de pèlerins s'y rendent chaque année", "Il abrite une structure cubique noire appelée la Kaaba", "Ce pèlerinage est l'un des cinq piliers de l'Islam"], ans: "La Mecque et le Hajj", exp: "Le Hajj représente le plus grand rassemblement humain annuel au monde et la fierté historique du royaume saoudien." }
+            ],
+            'Grèce': [
+                { clues: ["C'est un plat grec servi en entrée ou en accompagnement", "C'est une sauce froide à base de yaourt épais et de concombre râpé", "Elle est assaisonnée d'ail, d'huile d'olive et de menthe ou d'aneth", "Elle accompagne traditionnellement le pain pita et les grillades"], ans: "Le Tzatziki", exp: "Ce plat frais et convivial est un pilier incontournable des repas partagés (mezzés) grecs." },
+                { clues: ["C'est une danse traditionnelle grecque pratiquée en cercle", "Les danseurs se tiennent par les épaules ou les mains", "Elle est incontournable lors des mariages et fêtes populaires", "Son nom vient du mot 'syrtos' qui signifie 'glisser' en grec"], ans: "Le Sirtaki", exp: "La danse exprime la joie de vivre communautaire (le Kéfi) des Grecs dans les moments de fête." },
+                { clues: ["C'est une boisson alcoolisée grecque transparente qui devient laiteuse avec de l'eau", "Elle est distillée à partir de raisins et aromatisée à l'anis", "Elle est traditionnellement partagée entre amis dans les tavernes", "Son nom vient du turc et signifie 'lion's milk' — le lait du lion"], ans: "L'Ouzo", exp: "L'Ouzo est la boisson nationale, symbole de détente et d'hospitalité estivale." },
+                { clues: ["C'est un monument emblématique construit au 5ème siècle avant J.C.", "Il est dédié à la déesse Athéna, protectrice de la cité", "Il se trouve au sommet d'une colline rocheuse dominant Athènes", "Ses colonnes de marbre blanc sont visibles depuis toute la ville"], ans: "Le Parthénon", exp: "Le Parthénon incarne l'âge d'or de la démocratie athénienne et est le joyau architectural du pays." },
+                { clues: ["C'est une pâtisserie grecque très sucrée servie lors des fêtes", "Elle est composée de fines feuilles de pâte filo superposées", "Elle est garnie de noix concassées et de miel", "Son nom vient du turc et elle est partagée dans tout le Moyen-Orient"], ans: "Le Baklava", exp: "Ce dessert riche en miel illustre l'héritage partagé entre la Grèce et le reste de l'Empire ottoman." }
+            ],
+            // Fallback for others
+            'Générique': [
+                { clues: ["Mon pays est riche d'histoire.", "Ma culture valorise la communauté.", "J'ai une gastronomie unique.", "Je suis une destination fascinante."], ans: "Ce Pays", exp: "Chaque pays possède un patrimoine unique qui mérite d'être découvert avec respect." },
+                { clues: ["On y parle une langue mélodieuse.", "Les coutumes y sont anciennes.", "Les paysages sont variés.", "C'est un endroit à visiter."], ans: "Ce Pays", exp: "L'ouverture d'esprit est le meilleur bagage pour comprendre une nouvelle culture." },
+                { clues: ["L'artisanat y est très développé.", "Les fêtes traditionnelles sont colorées.", "La musique rythme la vie.", "C'est un lieu vibrant."], ans: "Ce Pays", exp: "L'art et la fête sont des marqueurs d'identité forts partout dans le monde." },
+                { clues: ["L'architecture reflète l'histoire.", "La religion ou la spiritualité y a sa place.", "Les anciens y sont respectés.", "C'est une société complexe."], ans: "Ce Pays", exp: "Observer l'architecture et les relations sociales donne les clés d'une culture." },
+                { clues: ["On y cultive des saveurs fortes.", "Les marchés sont animés.", "L'hospitalité est une vertu.", "C'est une expérience inoubliable."], ans: "Ce Pays", exp: "Se perdre dans un marché local est le meilleur moyen de ressentir le pouls d'une nation." }
+            ]
+        };
+
+        const COUNTRY_OBJECTS = {
+            'Norvège': [
+                {
+                    src: "https://sketchfab.com/models/0030d8b91c414b619f2ca3ae79e7a080/embed?autostart=1&ui_infos=0&ui_controls=0&ui_stop=0&ui_watermark=0&ui_watermark_link=0&ui_hint=0&ui_fullscreen=0&ui_vr=0&ui_annotations=0",
+                    ans: "Un casque viking, coiffe de guerre des guerriers nordiques du Moyen-Âge",
+                    hints: [
+                        "C'est un objet de protection porté à la tête",
+                        "Il était utilisé par des guerriers nordiques il y a plus de 1000 ans",
+                        "Ces guerriers naviguaient sur des drakkars et exploraient l'Europe"
+                    ]
+                },
+                {
+                    src: "https://sketchfab.com/models/cc14bd0e3a614da9b00a521da51999e1/embed?autostart=1&ui_infos=0&ui_controls=0&ui_stop=0&ui_watermark=0&ui_watermark_link=0&ui_hint=0&ui_fullscreen=0&ui_vr=0&ui_annotations=0",
+                    ans: "Un drakkar viking, embarcation longue utilisée par les Vikings pour explorer et conquérir",
+                    hints: [
+                        "C'est un moyen de transport",
+                        "Il se déplace sur l'eau grâce à des rames et une voile",
+                        "Sa proue est ornée d'une tête sculptée, souvent un dragon"
+                    ]
+                }
+            ],
+            'Arabie Saoudite': [
+                {
+                    src: "https://sketchfab.com/models/a29ab8a8e1f14e999d632c5d4c349fbb/embed?autostart=1&ui_infos=0&ui_controls=0&ui_stop=0&ui_watermark=0&ui_watermark_link=0&ui_hint=0&ui_fullscreen=0&ui_vr=0&ui_annotations=0",
+                    ans: "Une Dallah, cafetière traditionnelle saoudienne utilisée pour servir le café à la cardamome (Qahwa)",
+                    hints: [
+                        "C'est un récipient utilisé pour préparer et servir une boisson chaude",
+                        "Cette boisson est aromatisée à la cardamome et parfois au safran",
+                        "Refuser cette boisson lors d'une visite est considéré comme impoli en Arabie Saoudite"
+                    ]
+                },
+                {
+                    src: "https://sketchfab.com/models/86a18abe316a4d4fa74a4a030b2b573f/embed?autostart=1&ui_infos=0&ui_controls=0&ui_stop=0&ui_watermark=0&ui_watermark_link=0&ui_hint=0&ui_fullscreen=0&ui_vr=0&ui_annotations=0",
+                    ans: "Un brûleur d'encens arabe (Mabkhara), utilisé pour parfumer les maisons et accueillir les invités",
+                    hints: [
+                        "C'est un objet décoratif qui dégage une odeur",
+                        "Il est utilisé lors des cérémonies d'accueil des invités",
+                        "Le parfum qu'il diffuse s'appelle le Bakhoor, très prisé dans la péninsule arabique"
+                    ]
+                }
+            ],
+            'Brésil': [
+                {
+                    src: "https://sketchfab.com/models/fa8c4b24898c40ec86a40449cec47474/embed?autostart=1&ui_infos=0&ui_controls=0&ui_stop=0&ui_watermark=0&ui_watermark_link=0&ui_hint=0&ui_fullscreen=0&ui_vr=0&ui_annotations=0",
+                    ans: "Le Christ Rédempteur, statue emblématique de Rio de Janeiro classée parmi les 7 merveilles du monde moderne",
+                    hints: [
+                        "C'est une statue monumentale",
+                        "Elle représente une figure religieuse les bras grands ouverts",
+                        "Elle surplombe une grande ville sur une colline appelée le Corcovado"
+                    ]
+                },
+                {
+                    src: "https://sketchfab.com/models/6db07a048621443992a8048dd62c026f/embed?autostart=1&ui_infos=0&ui_controls=0&ui_stop=0&ui_watermark=0&ui_watermark_link=0&ui_hint=0&ui_fullscreen=0&ui_vr=0&ui_annotations=0",
+                    ans: "Un Djembé, tambour d'origine africaine intégré dans la culture musicale brésilienne via l'héritage des esclaves",
+                    hints: [
+                        "C'est un instrument de musique à percussion",
+                        "Il se joue avec les mains, sans baguettes",
+                        "Il est lié à l'héritage africain apporté au Brésil par les esclaves, intégré dans la Capoeira"
+                    ]
+                }
+            ],
+            'Singapour': [
+                {
+                    src: "https://sketchfab.com/models/2b25795ed2d7497c830c1cdc06ad1b2b/embed?autostart=1&ui_infos=0&ui_controls=0&ui_stop=0&ui_watermark=0&ui_watermark_link=0&ui_hint=0&ui_fullscreen=0&ui_vr=0&ui_annotations=0",
+                    ans: "Le Merlion, symbole officiel de Singapour : créature mi-lion mi-poisson représentant les origines maritimes de la ville",
+                    hints: [
+                        "C'est une statue symbolique d'une créature mythologique",
+                        "Cette créature a la tête d'un animal terrestre et le corps d'un animal marin",
+                        "Elle crache de l'eau et se trouve au bord de la baie de Marina Bay"
+                    ]
+                },
+                {
+                    src: "https://sketchfab.com/models/d96647d3ce16476d914e27c0c7492741/embed?autostart=1&ui_infos=0&ui_controls=0&ui_stop=0&ui_watermark=0&ui_watermark_link=0&ui_hint=0&ui_fullscreen=0&ui_vr=0&ui_annotations=0",
+                    ans: "Une lanterne chinoise, symbole de la forte communauté sino-singapourienne, utilisée lors du Nouvel An Chinois",
+                    hints: [
+                        "C'est un objet décoratif lumineux",
+                        "Il est accroché lors des fêtes et célébrations asiatiques",
+                        "À Singapour, il illumine Chinatown lors du Nouvel An Lunaire chaque année"
+                    ]
+                }
+            ],
+            'Grèce': [
+                {
+                    src: "https://sketchfab.com/models/0568746295de4aa5886a38ad811be600/embed?autostart=1&ui_infos=0&ui_controls=0&ui_stop=0&ui_watermark=0&ui_watermark_link=0&ui_hint=0&ui_fullscreen=0&ui_vr=0&ui_annotations=0",
+                    ans: "Une amphore grecque antique du 6ème siècle avant J.C., utilisée pour transporter et conserver le vin, l'huile et les céréales",
+                    hints: [
+                        "C'est un récipient en céramique avec deux anses",
+                        "Il était utilisé pour stocker et transporter des liquides précieux",
+                        "On en a retrouvé des milliers dans la Méditerranée, preuve du commerce grec antique"
+                    ]
+                },
+                {
+                    src: "https://sketchfab.com/models/793a3eb779454e8db5552ac934f20098/embed?autostart=1&ui_infos=0&ui_controls=0&ui_stop=0&ui_watermark=0&ui_watermark_link=0&ui_hint=0&ui_fullscreen=0&ui_vr=0&ui_annotations=0",
+                    ans: "Un casque corinthien, armure emblématique des guerriers grecs antiques, symbole de la puissance militaire de Sparte et Athènes",
+                    hints: [
+                        "C'est un équipement de protection porté à la tête",
+                        "Il était porté par les soldats de l'Antiquité dans la région méditerranéenne",
+                        "Il est associé aux célèbres guerriers qui ont combattu lors de la bataille des Thermopyles"
+                    ]
+                }
+            ],
+            'Générique': [
+                {
+                    src: "https://sketchfab.com/models/2b25795ed2d7497c830c1cdc06ad1b2b/embed?autostart=1&ui_infos=0&ui_controls=0&ui_stop=0&ui_watermark=0&ui_watermark_link=0&ui_hint=0&ui_fullscreen=0&ui_vr=0&ui_annotations=0",
+                    ans: "Un artefact culturel symbolique",
+                    hints: ["C'est un objet mystère", "Il a une grande importance culturelle", "Tournez-le pour l'observer sous toutes les coutures"]
+                }
+            ]
+        };
+
+        const GamesSection = ({ country, onBack }) => {
+            const [activeGame, setActiveGame] = useState(null);
+            const [isClosing, setIsClosing] = useState(false);
+
+            // STATE Game 1: Dilemma
+            const currentDilemmas = COUNTRY_DILEMMAS[country.name] || COUNTRY_DILEMMAS['Générique'];
+            const [g1ScenarioIndex, setG1ScenarioIndex] = useState(0);
+            const [g1Feedback, setG1Feedback] = useState(null);
+            const [g1SelectedOpt, setG1SelectedOpt] = useState(null);
+
+            const nextDilemma = () => {
+                let next;
+                if (currentDilemmas.length > 1) {
+                    do { next = Math.floor(Math.random() * currentDilemmas.length); } 
+                    while (next === g1ScenarioIndex);
+                } else {
+                    next = 0;
+                }
+                setG1ScenarioIndex(next);
+                setG1Feedback(null);
+                setG1SelectedOpt(null);
+            };
+
+            // STATE Game 2: Detective
+            const currentDetectives = COUNTRY_DETECTIVES[country.name] || COUNTRY_DETECTIVES['Générique'];
+            const [g2SeriesIndex, setG2SeriesIndex] = useState(0);
+            const [g2Revealed, setG2Revealed] = useState(1);
+            const [g2Feedback, setG2Feedback] = useState(null);
+            const [g2Score, setG2Score] = useState(0);
+
+            const nextDetective = () => {
+                let next;
+                if (currentDetectives.length > 1) {
+                    do { next = Math.floor(Math.random() * currentDetectives.length); } 
+                    while (next === g2SeriesIndex);
+                } else {
+                    next = 0;
+                }
+                setG2SeriesIndex(next);
+                setG2Revealed(1);
+                setG2Feedback(null);
+            };
+
+            const handleG2Guess = () => {
+                const points = [0, 4, 3, 2, 1][g2Revealed] || 1;
+                setG2Score(prev => prev + points);
+                setG2Feedback({ points });
+            };
+
+            // STATE Game 3: Mystery Object
+            const currentObjects = COUNTRY_OBJECTS[country.name] || COUNTRY_OBJECTS['Générique'];
+            const [g3ObjIndex, setG3ObjIndex] = useState(0);
+            const [g3HintIndex, setG3HintIndex] = useState(-1);
+            const [g3AnswerRevealed, setG3AnswerRevealed] = useState(false);
+            
+            const currentObj = currentObjects[g3ObjIndex];
+            const currentHints = currentObj.hints;
+
+            // Setup Hint Timer
+            useEffect(() => {
+                if (activeGame !== 3) return;
+                setG3HintIndex(-1);
+                setG3AnswerRevealed(false);
+                let timer = setTimeout(() => setG3HintIndex(0), 15000); // Premier indice après 15s
+                return () => clearTimeout(timer);
+            }, [activeGame, country, g3ObjIndex]);
+
+            useEffect(() => {
+                if (activeGame === 3 && g3HintIndex >= 0 && g3HintIndex < currentHints.length - 1 && !g3AnswerRevealed) {
+                    let timer = setTimeout(() => setG3HintIndex(prev => prev + 1), 15000);
+                    return () => clearTimeout(timer);
+                }
+            }, [g3HintIndex, currentHints.length, activeGame, g3AnswerRevealed]);
+
+            const nextObject = () => {
+                setG3ObjIndex(prev => (prev + 1) % currentObjects.length);
+            };
+
+            const renderGameContent = () => {
+                if(activeGame === 1) {
+                    const d = currentDilemmas[g1ScenarioIndex];
+                    return (
+                        <div className="flex flex-col h-full animate-[fadeIn_0.3s_ease]">
+                            <h3 className="font-title text-3xl mb-6 text-[#4A7197]">Le Dilemme du Voyageur</h3>
+                            <p className="text-xl mb-8 leading-relaxed">{d.q}</p>
+                            {!g1Feedback ? (
+                                <div className="space-y-4">
+                                    {d.opts.map((opt, i) => (
+                                        <button 
+                                            key={i} 
+                                            onClick={() => { 
+                                                setG1SelectedOpt(i); 
+                                                setG1Feedback(i === d.ans ? 'success' : 'error'); 
+                                            }} 
+                                            className="w-full text-left liquid-glass p-4 hover:bg-white/10 transition"
+                                        >
+                                            {opt}
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="flex flex-col flex-grow">
+                                    <div className="space-y-4 mb-6">
+                                        {d.opts.map((opt, i) => {
+                                            let btnClass = "w-full text-left liquid-glass p-4 transition ";
+                                            if (i === d.ans) {
+                                                btnClass += "bg-green-500/20 border-green-500 text-green-300";
+                                            } else if (i === g1SelectedOpt) {
+                                                btnClass += "bg-red-500/20 border-red-500 text-red-300";
+                                            } else {
+                                                btnClass += "opacity-50";
+                                            }
+                                            return (
+                                                <button key={i} disabled className={btnClass}>
+                                                    {i === d.ans ? "✓ " : (i === g1SelectedOpt ? "✗ " : "")}{opt}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    <div className="liquid-glass p-6 border-[#4A7197] bg-[#4A7197]/10 mt-auto">
+                                        <h4 className="font-bold text-lg mb-2 flex items-center gap-2">
+                                            DisBot 
+                                            {g1Feedback === 'success' ? <span className="text-green-400">✓ Excellent choix</span> : <span className="text-red-400">✗ Attention au faux pas</span>}
+                                        </h4>
+                                        <p className="text-gray-200">{d.exp}</p>
+                                        <button onClick={nextDilemma} className="mt-4 px-6 py-2 bg-white/20 rounded-full hover:bg-white/30 transition text-sm font-bold">Nouveau scénario</button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    );
+                }
+                if(activeGame === 2) {
+                    const d = currentDetectives[g2SeriesIndex];
+                    return (
+                        <div className="flex flex-col h-full animate-[fadeIn_0.3s_ease]">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="font-title text-3xl text-[#4A7197]">Le Détective Culturel</h3>
+                                <div className="font-bold bg-white/10 px-4 py-2 rounded-full mr-[60px]">Score: {g2Score} pts</div>
+                            </div>
+                            <div className="space-y-4 mb-8">
+                                {d.clues.map((clue, i) => (
+                                    <div key={i} className={`p-4 liquid-glass transition-opacity duration-500 ${i < g2Revealed ? 'opacity-100' : 'opacity-0 hidden'}`}>
+                                        Indice {i+1} : {clue}
+                                    </div>
+                                ))}
+                            </div>
+                            {!g2Feedback ? (
+                                <div className="mt-auto space-y-4">
+                                    {g2Revealed < d.clues.length && <button onClick={() => setG2Revealed(prev => prev+1)} className="liquid-glass-btn px-6 py-2 w-full">Révéler l'indice suivant (-1 pt potentiel)</button>}
+                                    <button onClick={handleG2Guess} className="bg-[#4A7197] text-white font-bold px-6 py-3 rounded-full w-full hover:bg-[#4A7197]/80 transition">Je sais ! Voir la réponse</button>
+                                </div>
+                            ) : (
+                                <div className="liquid-glass p-6 mt-auto">
+                                    <h4 className="font-bold text-2xl text-[#4A7197] mb-2">{d.ans} <span className="text-sm font-normal text-white">({g2Feedback.points} pts gagnés)</span></h4>
+                                    <p className="text-gray-200">{d.exp}</p>
+                                    <button onClick={nextDetective} className="mt-4 px-6 py-2 bg-white/20 rounded-full hover:bg-white/30 transition text-sm font-bold">Nouveau Scénario</button>
+                                </div>
+                            )}
+                        </div>
+                    );
+                }
+                if(activeGame === 3) {
+                    return (
+                        <div className="flex flex-col h-full animate-[fadeIn_0.3s_ease] relative">
+                            {/* En-tête : hauteur fixe 60px */}
+                            <div className="flex justify-between items-center h-[60px] shrink-0 mb-4">
+                                <div>
+                                    <h3 className="font-title text-3xl text-[#4A7197] leading-none mb-1">L'Objet Mystère</h3>
+                                    <p className="text-sm text-gray-400">Manipulez l'objet 3D pour deviner sa fonction.</p>
+                                </div>
+                                <span className="font-bold bg-white/10 px-4 py-1 rounded-full text-sm mr-[50px] shrink-0">
+                                    Objet {g3ObjIndex + 1} / {currentObjects.length}
+                                </span>
+                            </div>
+                            
+                            {/* Zone iframe Sketchfab : hauteur fixe 350px */}
+                            <div className="w-full h-[350px] bg-black/20 rounded-xl overflow-hidden mb-4 relative shrink-0">
+                                {/* Bandeau de masquage absolu pour cacher le titre Sketchfab */}
+                                <div className="absolute top-0 left-0 w-full h-[55px] bg-[#000008] z-10 rounded-t-xl"></div>
+                                <iframe 
+                                    title="Mystery Object"
+                                    frameBorder="0" 
+                                    allowFullScreen 
+                                    width="100%" 
+                                    height="350px" 
+                                    src={`${currentObj.src}&transparent=1`}
+                                    className="absolute inset-0 w-full h-full"
+                                ></iframe>
+                            </div>
+                            
+                            {/* Zone DisBot : hauteur dynamique */}
+                            <div className="liquid-glass p-4 text-sm text-gray-300 min-h-[80px] max-h-[150px] overflow-y-auto shrink-0">
+                                <strong>DisBot : </strong> 
+                                {!g3AnswerRevealed ? (
+                                    g3HintIndex >= 0 ? currentHints.slice(0, g3HintIndex + 1).map((h, i) => <span key={i} className="block mt-1 animate-[fadeIn_0.5s_ease]">- {h}</span>) : 
+                                    <span className="text-gray-500 italic">J'observe... Des indices apparaîtront si vous bloquez.</span>
+                                ) : (
+                                    <span className="block mt-1 text-green-400 font-bold text-base animate-[fadeIn_0.5s_ease]">{currentObj.ans}</span>
+                                )}
+                            </div>
+
+                            {/* Zone bouton d'action : en dessous, aligné à droite */}
+                            <div className="flex justify-end mt-[10px] shrink-0">
+                                {!g3AnswerRevealed ? (
+                                    <button onClick={() => setG3AnswerRevealed(true)} className="liquid-glass-btn px-6 py-2 text-xs font-bold shadow-[0_0_10px_rgba(255,255,255,0.1)]">Voir la réponse</button>
+                                ) : (
+                                    <button onClick={nextObject} className="bg-[#4A7197] text-white px-6 py-2 rounded-full text-xs font-bold hover:bg-[#4A7197]/80 transition shadow-[0_0_15px_rgba(74,113,151,0.4)]">Objet suivant</button>
+                                )}
+                            </div>
+                        </div>
+                    );
+                }
+                return null;
+            };
+
+            const closeGame = () => {
+                setIsClosing(true);
+                setTimeout(() => {
+                    setActiveGame(null);
+                    setIsClosing(false);
+                }, 200); // Animation de fermeture de 200ms
+            };
+
+            useEffect(() => {
+                // Empêche le scrolling arrière quand un jeu est ouvert
+                if (activeGame && !isClosing) {
+                    document.body.style.overflow = 'hidden';
+                } else {
+                    document.body.style.overflow = '';
+                }
+                return () => { document.body.style.overflow = ''; };
+            }, [activeGame, isClosing]);
+
+            return (
+                <div className="fixed inset-0 z-40 bg-[#030508]/90 backdrop-blur-xl animate-[fadeIn_0.5s_ease] flex flex-col p-8 md:p-16">
+                    <div className="relative flex justify-center items-center w-full mb-10 shrink-0 h-[50px]">
+                        <h2 className="font-title text-2xl md:text-4xl capitalize whitespace-nowrap overflow-hidden text-ellipsis text-center px-4">
+                            Ateliers Interactifs : {country.name}
+                        </h2>
+                        <button onClick={onBack} className="absolute right-[20px] liquid-glass-btn px-4 md:px-6 py-2 text-sm md:text-base font-semibold z-10">
+                            ← Quitter les ateliers
+                        </button>
+                    </div>
+
+                    {/* Grille de sélection des jeux (toujours rendue, statique) */}
+                    <div className="flex-grow flex items-center justify-center">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl mx-auto">
+                            {[
+                                { id: 1, title: "Le Dilemme du Voyageur", desc: "Testez vos réactions face à des situations professionnelles tendues." },
+                                { id: 2, title: "Le Détective Culturel", desc: "Devinez le pays à l'aide d'indices visuels et textuels progressifs." },
+                                { id: 3, title: "L'Objet Mystère", desc: "Manipulez un artefact 3D et découvrez sa fonction secrète." }
+                            ].map(game => (
+                                <div key={game.id} onClick={() => setActiveGame(game.id)} className="liquid-glass h-[200px] p-6 flex flex-col justify-center items-center text-center cursor-pointer hover:bg-white/10 hover:scale-105 transition-all duration-300 group">
+                                    <div className="w-12 h-12 rounded-full bg-[#4A7197]/20 flex items-center justify-center text-[#4A7197] mb-4 group-hover:bg-[#4A7197] group-hover:text-white transition-colors shrink-0">
+                                        <Icons.Gamepad />
+                                    </div>
+                                    <h3 className="font-title text-xl mb-2 font-bold">{game.title}</h3>
+                                    <p className="text-gray-400 text-sm line-clamp-2">{game.desc}</p>
+                                </div>
+                            ))}
+                            {/* Carte Coming soon (totalement statique) */}
+                            <div className="liquid-glass h-[200px] p-6 flex flex-col justify-center items-center text-center opacity-50 select-none grayscale" style={{ willChange: 'auto', transform: 'none' }}>
+                                <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center text-white mb-4 shrink-0">
+                                    <Icons.Lock />
+                                </div>
+                                <h3 className="font-title text-xl mb-2 font-bold">À venir</h3>
+                                <p className="text-gray-400 text-sm line-clamp-2">D'autres jeux arrivent bientôt.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Panneau du jeu actif en surcouche (Plein écran) */}
+                    {(activeGame || isClosing) && (
+                        <div className={`fixed top-0 left-0 w-[100vw] h-[100vh] z-[60] bg-[#030508]/95 backdrop-blur-xl flex items-center justify-center p-4 transition-opacity ${isClosing ? 'duration-200 opacity-0' : 'duration-300 opacity-100'}`}>
+                            <div className="relative w-full max-w-4xl mx-auto max-h-[90vh] overflow-y-auto liquid-glass p-8 md:p-12">
+                                <button onClick={closeGame} className="absolute top-6 right-6 p-2 rounded-full bg-white/10 hover:bg-white/20 transition z-10">
+                                    <Icons.X />
+                                </button>
+                                {renderGameContent()}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [view, setView] = useState('loading'); // loading, home, transition, 360, games
+            const [selectedContinent, setSelectedContinent] = useState(null);
+            const [selectedCountry, setSelectedCountry] = useState(null);
+
+            const handleContinentSelect = (continent) => {
+                setSelectedContinent(continent);
+            };
+
+            const handleCountrySelect = (country) => {
+                setSelectedCountry(country);
+                setView('transition');
+            };
+
+            const goHome = () => {
+                setView('home');
+                setSelectedContinent(null);
+                setSelectedCountry(null);
+                if(window.shiftEarth) window.shiftEarth(false);
+            };
+
+            return (
+                <div className="w-full h-full text-white font-sans">
+                    <GalaxyBackground />
+                    <Navbar setView={setView} view={view} goHome={goHome} />
+
+                    {view === 'loading' && (
+                        <LoadingScreen onComplete={() => setView('home')} />
+                    )}
+
+                    {(view === 'home' || view === 'transition' || view === '360') && (
+                        <GlobeView onSelectContinent={handleContinentSelect} />
+                    )}
+
+                    {view === 'home' && selectedContinent && (
+                        <CountryPanel 
+                            continent={selectedContinent} 
+                            onSelectCountry={handleCountrySelect}
+                            onClose={() => setSelectedContinent(null)} 
+                        />
+                    )}
+
+                    {view === 'transition' && selectedCountry && (
+                        <TransitionScreen 
+                            country={selectedCountry} 
+                            onComplete={() => setView('360')} 
+                        />
+                    )}
+
+                    {view === '360' && selectedCountry && (
+                        <View360 
+                            country={selectedCountry}
+                            onBack={() => { setView('home'); setSelectedContinent(null); if(window.shiftEarth) window.shiftEarth(false); }}
+                            onPlay={() => setView('games')}
+                        />
+                    )}
+
+                    {view === 'games' && selectedCountry && (
+                        <GamesSection 
+                            country={selectedCountry}
+                            onBack={() => setView('360')}
+                        />
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
